@@ -1,0 +1,15 @@
+﻿<?xml version='1.0' encoding='utf-8'?>
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="SPOutLook.Properties" GeneratedClassName="Settings">
+  <Profiles />
+  <Settings>
+    <Setting Name="SPOutLook_com_myitopia_sharepoint_Authentication" Type="(Web Service URL)" Scope="Application">
+      <Value Profile="(Default)">https://sharepoint.myitopia.com/_vti_bin/Authentication.asmx</Value>
+    </Setting>
+    <Setting Name="SPOutLook_com_myitopia_sharepoint_Lists" Type="(Web Service URL)" Scope="Application">
+      <Value Profile="(Default)">https://sharepoint.myitopia.com/_vti_bin/Lists.asmx</Value>
+    </Setting>
+    <Setting Name="SPOutLook_com_myitopia_sharepoint_Copy" Type="(Web Service URL)" Scope="Application">
+      <Value Profile="(Default)">https://sharepoint.myitopia.com/_vti_bin/Copy.asmx</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>
