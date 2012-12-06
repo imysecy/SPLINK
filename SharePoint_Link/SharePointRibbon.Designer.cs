@@ -37,12 +37,14 @@
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(SharePointRibbon));
             this.tab1 = new Microsoft.Office.Tools.Ribbon.RibbonTab();
             this.group1 = new Microsoft.Office.Tools.Ribbon.RibbonGroup();
-            this.button1 = new Microsoft.Office.Tools.Ribbon.RibbonButton();
             this.btnConnectionProperties = new Microsoft.Office.Tools.Ribbon.RibbonButton();
             this.btnNewConnection = new Microsoft.Office.Tools.Ribbon.RibbonButton();
             this.btnOptions = new Microsoft.Office.Tools.Ribbon.RibbonButton();
-            this.Uploads = new Microsoft.Office.Tools.Ribbon.RibbonButton();
             this.Manage = new Microsoft.Office.Tools.Ribbon.RibbonGroup();
+            this.Uploads = new Microsoft.Office.Tools.Ribbon.RibbonButton();
+            this.Copy = new Microsoft.Office.Tools.Ribbon.RibbonButton();
+            this.Move = new Microsoft.Office.Tools.Ribbon.RibbonButton();
+            this.button1 = new Microsoft.Office.Tools.Ribbon.RibbonButton();
             this.tab1.SuspendLayout();
             this.group1.SuspendLayout();
             this.Manage.SuspendLayout();
@@ -65,12 +67,6 @@
             this.group1.Label = "ITOPIA SharePoint Configuration";
             this.group1.Name = "group1";
             // 
-            // button1
-            // 
-            this.button1.Label = "SSP 2010";
-            this.button1.Name = "button1";
-            this.button1.ShowImage = true;
-            // 
             // btnConnectionProperties
             // 
             this.btnConnectionProperties.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge;
@@ -87,7 +83,7 @@
             // 
             this.btnNewConnection.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge;
             this.btnNewConnection.Description = "Connect To SharePoint";
-            this.btnNewConnection.Image = global::SharePoint_Link.Properties.Resources.new_conn;
+            this.btnNewConnection.Image = global::SharePoint_Link.Properties.Resources.h21;
             this.btnNewConnection.ImageName = "New Connection ";
             this.btnNewConnection.Label = "New Connection";
             this.btnNewConnection.Name = "btnNewConnection";
@@ -107,6 +103,14 @@
             this.btnOptions.ShowImage = true;
             this.btnOptions.Click += new System.EventHandler<Microsoft.Office.Tools.Ribbon.RibbonControlEventArgs>(this.btnOptions_Click);
             // 
+            // Manage
+            // 
+            this.Manage.Items.Add(this.Uploads);
+            this.Manage.Items.Add(this.Copy);
+            this.Manage.Items.Add(this.Move);
+            this.Manage.Label = "ITOPIA SharePoint Utilities";
+            this.Manage.Name = "Manage";
+            // 
             // Uploads
             // 
             this.Uploads.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge;
@@ -117,11 +121,29 @@
             this.Uploads.ShowImage = true;
             this.Uploads.Click += new System.EventHandler<Microsoft.Office.Tools.Ribbon.RibbonControlEventArgs>(this.Uploads_Click);
             // 
-            // Manage
+            // Copy
             // 
-            this.Manage.Items.Add(this.Uploads);
-            this.Manage.Label = "group2";
-            this.Manage.Name = "Manage";
+            this.Copy.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge;
+            this.Copy.Image = global::SharePoint_Link.Properties.Resources.copy;
+            this.Copy.Label = "Copy";
+            this.Copy.Name = "Copy";
+            this.Copy.ShowImage = true;
+            this.Copy.Click += new System.EventHandler<Microsoft.Office.Tools.Ribbon.RibbonControlEventArgs>(this.Copy_Click);
+            // 
+            // Move
+            // 
+            this.Move.ControlSize = Microsoft.Office.Core.RibbonControlSize.RibbonControlSizeLarge;
+            this.Move.Image = global::SharePoint_Link.Properties.Resources.move;
+            this.Move.Label = "Move";
+            this.Move.Name = "Move";
+            this.Move.ShowImage = true;
+            this.Move.Click += new System.EventHandler<Microsoft.Office.Tools.Ribbon.RibbonControlEventArgs>(this.Move_Click);
+            // 
+            // button1
+            // 
+            this.button1.Label = "SSP 2010";
+            this.button1.Name = "button1";
+            this.button1.ShowImage = true;
             // 
             // SharePointRibbon
             // 
@@ -153,6 +175,8 @@
         internal Microsoft.Office.Tools.Ribbon.RibbonButton btnOptions;
         internal Microsoft.Office.Tools.Ribbon.RibbonButton Uploads;
         internal Microsoft.Office.Tools.Ribbon.RibbonGroup Manage;
+        internal Microsoft.Office.Tools.Ribbon.RibbonButton Copy;
+        internal Microsoft.Office.Tools.Ribbon.RibbonButton Move;
     }
 
     partial class ThisRibbonCollection : Microsoft.Office.Tools.Ribbon.RibbonReadOnlyCollection

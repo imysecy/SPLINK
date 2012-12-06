@@ -21,6 +21,8 @@ namespace SharePoint_Link.Utility
         ///<c>listService</c>  class object of class <c>Lists</c> 
         /// </summary>
         ListWebService.Lists listService;
+        
+      
 
         /// <summary>
         /// <c>fileID</c> member field of type string
@@ -340,6 +342,7 @@ namespace SharePoint_Link.Utility
             try
             {
 
+              
 
 
                 CommonProperties cmproperties = new CommonProperties();
@@ -353,15 +356,16 @@ namespace SharePoint_Link.Utility
 
 
                 FileStream fs = new FileStream(tempFilePath, FileMode.Create, FileAccess.ReadWrite);
-
+              
                 //////// out look storage//////////
-
+                
                 try
                 {
                     if (udataitem.UploadType == TypeOfUploading.Mail)
                     {
-
+                       
                         Stream msgstream = new MemoryStream(cmproperty.FileBytes);
+                        
                         Utility.OutlookStorage.Message message = new OutlookStorage.Message(msgstream);
                         if (!string.IsNullOrEmpty(message.BodyText))
                         {
@@ -396,21 +400,24 @@ namespace SharePoint_Link.Utility
 
                 if (cmproperty.FileBytes != null)
                 {
+                    
                     BinaryWriter bw = new BinaryWriter(fs);
                     bw.Write(cmproperty.FileBytes);
                     bw.Close();
+                    
                 }
 
 
                 ///updated new 6jan//////
                 string strsitepath = cmproperty.LibSite;
+               
                 string strleftpart = "/";
                 int firstindex = -1;
                 int secondindex = -1;
                 firstindex = strsitepath.IndexOf(@"//");
                 try
                 {
-
+                   
 
                     if (firstindex != -1)
                     {
@@ -433,23 +440,30 @@ namespace SharePoint_Link.Utility
                             }
 
                         }
+                        
 
                     }
                 }
                 catch (Exception)
                 {
                 }
+               
                 string pth = strleftpart + cmproperty.UploadDocLibraryName + "/" + udataitem.UploadFileName;
 
                 // end of new///
-
+                
                 Microsoft.SharePoint.Client.ClientContext ct = new ClientContext(cmproperty.LibSite);
-
+               
                 ct.Credentials = ListWebClass.GetCredential(cmproperty);
-
+                
                 using (FileStream filestream = new FileStream(tempFilePath, FileMode.Open))
                 {
-                    Microsoft.SharePoint.Client.File.SaveBinaryDirect(ct, pth, filestream, true);
+                   
+                 
+                    
+                        Microsoft.SharePoint.Client.File.SaveBinaryDirect(ct, pth, filestream, true);
+                       
+                        
                 };
 
                 result = true;
@@ -490,6 +504,7 @@ namespace SharePoint_Link.Utility
             return result;
         }
 
+       
         /// <summary>
         /// <c>GetFileID</c> member function
         /// this member function is used to get ID of the file recently uploaded to sharepoint document library

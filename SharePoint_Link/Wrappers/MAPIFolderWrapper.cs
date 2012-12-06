@@ -7,7 +7,8 @@ using SharePoint_Link.Utility;
 using System.Text.RegularExpressions;
 using Utility;
 using System.Xml;
-
+using System.ComponentModel;
+using System.Threading;
 
 namespace SharePoint_Link
 {
@@ -16,10 +17,15 @@ namespace SharePoint_Link
     /// </summary>
     public class MAPIFolderWrapper
     {
-        private Microsoft.Office.Tools.CustomTaskPane myCustomTaskPane;
-
         #region Global Variables
-
+        ///////////////////////Modified by Joy on 25.07.2012///////////////////////////////
+       // private Microsoft.Office.Tools.CustomTaskPane myCustomTaskPane;
+        public static Outlook._Application OutlookObj;
+        Outlook.NameSpace outlookNameSpace;
+        Outlook.Folders oMailRootFolders;
+        Microsoft.Office.Interop.Outlook.Category customCategory;
+        /////////////////////////////////////////////////////////////////////////////////
+      
         Outlook.MAPIFolder activeDroppingFolder;
         Outlook.Items activeDroppingFolderItems;
         Outlook.Explorer addinExplorer;
@@ -28,6 +34,28 @@ namespace SharePoint_Link
         Outlook.MAPIFolder parentfolder;
         private TypeOfMailItem ItemType = TypeOfMailItem.Mail;
         string mailitemEntryID = string.Empty;
+        
+        /// <summary>
+        ///code written by Joy 
+        /// </summary>
+        /// <param name="frmUploadItemsListObject"></param>
+        BackgroundWorker bw;
+       /// <summary>
+       /// code written by Joy
+       /// </summary>
+       /// <param name="frmUploadItemsListObject"></param>
+        delegate void Add(frmUploadItemsList frmUploadItemsListObject);
+       /// <summary>
+       /// code wriiten by Joy
+       /// delegate for updating progress status
+       /// </summary>
+        delegate void updateProgresStatus();
+       /// <summary>
+       /// code written by Joy
+       /// delegate declaration for updating the progressbar
+       /// </summary>
+        delegate void updateProgessBar();
+       
         #endregion
 
         #region Methods
@@ -50,10 +78,12 @@ namespace SharePoint_Link
                 isUserDroppedItemsCanUpload = isFolderMappedWithDocLibrary;
                 addinExplorer = outlookExplorer;
                 activeDroppingFolder = outlookFolder;
+
                 activeDroppingFolderItems = outlookFolder.Items;
                 activeDroppingFolderItems.ItemAdd -= new Microsoft.Office.Interop.Outlook.ItemsEvents_ItemAddEventHandler(activeDroppingFolderItems_ItemAdd);
-
-
+                
+                //bw.DoWork += delegate(object sender, DoWorkEventArgs e) { bw_DoWork(sender, e, Item); }; 
+               
             }
             catch (Exception ex)
             { }
@@ -75,47 +105,243 @@ namespace SharePoint_Link
         string strAttachmentReplacePattern = @"([{}\(\)\^$&%#!@=<>:;,~`'\’ \*\?\/\+\|\[\\\\]|\]|\-)";
 
 
+      /// <summary>
+      /// code written by Joy
+       /// invokes the frmUploadItemsList user control to the custom taskpane
+      /// </summary>
+      /// <param name="frmlistobject"></param>
+        
+        private void MyAddCustomTaskPane(frmUploadItemsList frmlistobject)
+        {
+            if (Globals.ThisAddIn.frmlistObject == null)
+            {
+                frmUploadItemsListObject = frmlistobject;
+                Globals.ThisAddIn.frmlistObject = frmUploadItemsListObject;
+                Globals.ThisAddIn.myCustomTaskPane = Globals.ThisAddIn.CustomTaskPanes.Add(frmUploadItemsListObject, "ITOPIA");
+                Globals.ThisAddIn.myCustomTaskPane.DockPosition = Microsoft.Office.Core.MsoCTPDockPosition.msoCTPDockPositionFloating;
+                Globals.ThisAddIn.myCustomTaskPane.DockPositionChanged += new EventHandler(myCustomTaskPane_DockPositionChanged);
+                Globals.ThisAddIn.myCustomTaskPane.Height = 500;
+                Globals.ThisAddIn.myCustomTaskPane.Width = 600;
+                frmUploadItemsListObject.ShowForm(folderName);
+                frmUploadItemsListObject.Show();
+                Globals.ThisAddIn.CustomTaskPanes[0].Visible = true;
+            }
+            else
+            {
+                try
+                {
+
+
+                          Globals.ThisAddIn.frmlistObject.Invoke(new MethodInvoker(delegate
+                        {
+                            frmUploadItemsListObject = Globals.ThisAddIn.frmlistObject;
+                            //frmUploadItemsListObject.Refresh();
+                            //Globals.ThisAddIn.myCustomTaskPane.Control.Refresh();
+                            frmUploadItemsListObject.ShowForm(folderName);
+                            frmUploadItemsListObject.lblPRStatus.Text = "";
+                        }));
+                    
+                }
+                catch (Exception ex)
+                {
+
+                }
+            }
+        }
+
+/// <summary>
+/// code wriiten by Joy
+ /// executes the delegate Add and invoking all of this to the main thread's form invoke method
+/// </summary>
+/// <param name="frmlistobject"></param>
+
+        void IAddCustomTaskPane(frmUploadItemsList frmlistobject)
+        {
+
+            Add add = new Add(MyAddCustomTaskPane);
+
+            Globals.ThisAddIn.form.Invoke(add, frmlistobject);
+
+        }
         /// <summary>
-        /// <c>activeDroppingFolderItems_ItemAdd</c> Event Handler
-        /// Fires when item is added to folder
+        /// code in this section totally modified and written by Joy
+        /// executes by the doWork event
+        /// performs drag n drop,copy/move upload operation
         /// </summary>
         /// <param name="Item"></param>
-        void activeDroppingFolderItems_ItemAdd(object Item)
+        public void doUploading(object Item)
         {
-            try
+            if (Globals.ThisAddIn.isMoveRunning == false&&Globals.ThisAddIn.isCopyRunninng==false)
             {
-
-                XmlNode uploadFolderNode = UserLogManagerUtility.GetSPSiteURLDetails("", folderName);
-
-                if (uploadFolderNode != null)
+                Globals.ThisAddIn.isuploadRunning = true;
+            }
+            if (Globals.ThisAddIn.isTimerUploadRunning == false)
+            {
+                try
                 {
-                    bool isDroppedItemUplaoded = false;
+                    ////////////////////////updated by Joy on 25.07.2012/////////////////
+                    OutlookObj = Globals.ThisAddIn.Application;
+                    outlookNameSpace = OutlookObj.GetNamespace("MAPI");
+                    Outlook.MAPIFolder oInBox = outlookNameSpace.GetDefaultFolder(Outlook.OlDefaultFolders.olFolderInbox);
+                    Outlook.MAPIFolder olMailRootFolder = (Outlook.MAPIFolder)oInBox.Parent;
+                    oMailRootFolders = olMailRootFolder.Folders;
+                    Outlook.MailItem moveMail = (Outlook.MailItem)Item;
+                    //Outlook.MAPIFolder destFolder=oMailRootFolders["Failed Uploads"];
+                    string customCatName = "Pending Uploads";
+                    //if (Globals.ThisAddIn.Application.Session.Categories[customCatName] == null)
+                    //{
+                    //    outlookNameSpace.Categories.Add(customCatName, Outlook.OlCategoryColor.olCategoryColorOrange, Outlook.OlCategoryShortcutKey.olCategoryShortcutKeyNone);
+                    //}
+                    string newCatName = "Successfully Uploaded";
+                    //if (Globals.ThisAddIn.Application.Session.Categories[newCatName] == null)
+                    //{
+                    //    outlookNameSpace.Categories.Add(newCatName, Outlook.OlCategoryColor.olCategoryColorDarkGreen, Outlook.OlCategoryShortcutKey.olCategoryShortcutKeyNone);
+                    //}
+                    //moveMail.Categories = customCatName;
+                    //moveMail.Save();
 
-                    addinExplorer = ThisAddIn.OutlookObj.ActiveExplorer();
 
-                    //Check the folder mapping with documnet library
+                    ////////////////////////updated by Joy on 25.07.2012/////////////////
+                    XmlNode uploadFolderNode = UserLogManagerUtility.GetSPSiteURLDetails("", folderName);
 
-                    if (isUserDroppedItemsCanUpload == false)
+                    if (uploadFolderNode != null)
                     {
-                        //Show message
+                        bool isDroppedItemUplaoded = false;
+
+                        addinExplorer = ThisAddIn.OutlookObj.ActiveExplorer();
+
+                        //Check the folder mapping with documnet library
+
+                        if (isUserDroppedItemsCanUpload == false)
+                        {
+                            //Show message
+                            try
+                            {
+
+
+                                Outlook.MailItem m = (Outlook.MailItem)Item;
+                                mailitemEntryID = m.EntryID;
+                                 
+                                try
+                                {
+                                    mailitem = m;
+
+                                    mailitemEntryID = m.EntryID;
+
+                                    string strsubject = m.EntryID;
+                                    if (string.IsNullOrEmpty(strsubject))
+                                    {
+                                        strsubject = "tempomailcopy";
+                                    }
+
+                                    mailitemEntryID = strsubject;
+
+                                    string tempFilePath = UserLogManagerUtility.RootDirectory + "\\" + strsubject + ".msg";
+
+                                    if (Directory.Exists(UserLogManagerUtility.RootDirectory) == false)
+                                    {
+                                        Directory.CreateDirectory(UserLogManagerUtility.RootDirectory);
+                                    }
+                                    m.SaveAs(tempFilePath, Outlook.OlSaveAsType.olMSG);
+
+
+                                }
+                                catch (Exception ex)
+                                {
+
+
+                                }
+
+                                Outlook.MAPIFolder fp = (Outlook.MAPIFolder)m.Parent;
+                                DoNotMoveInNonDocLib(mailitemEntryID, fp);
+
+
+                               
+
+                            }
+                            catch (Exception)
+                            {
+                                NonDocMoveReportItem(Item);
+                            }
+
+
+                            MessageBox.Show("You are attempting to move files to a non document library. This action is not supported.", "ITOPIA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                            return;
+
+                        }
+
+                //////////////////////////////////modified by Joy//////////////////////////////////////////////////////////////////////////////////
+                ///checks whether frmUploadItemsListObject is null or not
+                
+                        
+                        
+                        if (frmUploadItemsListObject == null || (frmUploadItemsListObject != null && frmUploadItemsListObject.IsDisposed == true))
+                        {
+
+                            if (Globals.ThisAddIn.frmlistObject == null)
+                            {
+                                frmUploadItemsListObject = new frmUploadItemsList();
+                                IAddCustomTaskPane(frmUploadItemsListObject);
+                                // frmUploadItemsListObject = new frmUploadItemsList();
+                                //  Globals.ThisAddIn.frmlistObject = frmUploadItemsListObject;
+                                // Globals.ThisAddIn.myCustomTaskPane = Globals.ThisAddIn.CustomTaskPanes.Add(frmUploadItemsListObject, "ITOPIA");
+                                //Globals.ThisAddIn.myCustomTaskPane.Visible = true;
+                                // Globals.ThisAddIn.myCustomTaskPane.DockPosition = Microsoft.Office.Core.MsoCTPDockPosition.msoCTPDockPositionFloating;
+                                // Globals.ThisAddIn.myCustomTaskPane.DockPositionChanged += new EventHandler(myCustomTaskPane_DockPositionChanged);
+                                // Globals.ThisAddIn.myCustomTaskPane.Height = 500;
+                                // Globals.ThisAddIn.myCustomTaskPane.Width = 600;
+                                //frmUploadItemsListObject.ShowForm(folderName);
+                                //frmUploadItemsListObject.lblPRStatus.Text = "";
+                            }
+                            else
+                            {
+                                try
+                                {
+
+                                    Globals.ThisAddIn.frmlistObject.Invoke(new MethodInvoker(delegate
+                                        {
+                                            frmUploadItemsListObject = Globals.ThisAddIn.frmlistObject;
+                                            //frmUploadItemsListObject.Refresh();
+                                            //Globals.ThisAddIn.myCustomTaskPane.Control.Refresh();
+                                            frmUploadItemsListObject.ShowForm(folderName);
+                                            frmUploadItemsListObject.lblPRStatus.Text = "";
+                                        }));
+                                   
+                                }
+                                catch(Exception ex)
+                                {
+
+                                }
+                            }
+
+                        }
+
+                        //frmUploadItemsListObject.TopLevel = true;
+                        //frmUploadItemsListObject.TopMost = true;
+
+                        //frmUploadItemsListObject.Show();
+                  //////////////////////////////////modified by Joy//////////////////////////////////////////////////////////////////////////////////
                         try
                         {
 
-
-                            Outlook.MailItem m = (Outlook.MailItem)Item;
-                            mailitemEntryID = m.EntryID;
-
+                            //////
+                            //////////
+                            Outlook.MailItem oMailItem = (Outlook.MailItem)Item;
+                            parentfolder = (Outlook.MAPIFolder)oMailItem.Parent;
                             try
                             {
-                                mailitem = m;
+                                mailitem = oMailItem;
 
-                                mailitemEntryID = m.EntryID;
-
-                                string strsubject = m.EntryID;
+                                mailitemEntryID = oMailItem.EntryID;
+                                
+                                
+                                string strsubject = oMailItem.EntryID;
                                 if (string.IsNullOrEmpty(strsubject))
                                 {
                                     strsubject = "tempomailcopy";
                                 }
+
 
                                 mailitemEntryID = strsubject;
 
@@ -125,302 +351,443 @@ namespace SharePoint_Link
                                 {
                                     Directory.CreateDirectory(UserLogManagerUtility.RootDirectory);
                                 }
-                                m.SaveAs(tempFilePath, Outlook.OlSaveAsType.olMSG);
+                                oMailItem.SaveAs(tempFilePath, Outlook.OlSaveAsType.olMSG);
 
 
                             }
                             catch (Exception ex)
                             {
 
-
                             }
 
-                            Outlook.MAPIFolder fp = (Outlook.MAPIFolder)m.Parent;
-                            DoNotMoveInNonDocLib(mailitemEntryID, fp);
+                            string fileName = string.Empty;
+                            if (!string.IsNullOrEmpty(oMailItem.Subject))
+                            {
+                                //Replce any specila characters in subject
+                                fileName = Regex.Replace(oMailItem.Subject, strMailSubjectReplcePattern, " ");
+                                fileName = fileName.Replace(".", "_");
+                            }
+
+                            if (string.IsNullOrEmpty(fileName))
+                            {
+                                DateTime dtReceivedDate = Convert.ToDateTime(oMailItem.ReceivedTime);
+                                fileName = "Untitled_" + dtReceivedDate.Day + "_" + dtReceivedDate.Month + "_" + dtReceivedDate.Year + "_" + dtReceivedDate.Hour + "_" + dtReceivedDate.Minute + "_" + dtReceivedDate.Millisecond;
+                            }
+
+                            UploadItemsData newUploadData = new UploadItemsData();
+                            newUploadData.ElapsedTime = DateTime.Now;
+                            newUploadData.UploadFileName = fileName;// oMailItem.Subject;
+                            newUploadData.UploadFileExtension = ".msg";
+                            newUploadData.UploadingMailItem = oMailItem;
+                            newUploadData.UploadType = TypeOfUploading.Mail;
+                            newUploadData.DisplayFolderName = folderName;
+                            frmUploadItemsListObject.UploadUsingDelegate(newUploadData);
+                            //Set dropped items is uploaded
+                            /////////////////////////updated by Joy on 25.07.2012/////////////////////////////////
+                            ///code in this section written by Joy//////
+                            ///gets the upload status
+                            bool uploadStatus = frmUploadItemsListObject.IsSuccessfullyUploaded;
+                            
+                            ///code in this section is totally written by Joy
+                            ///if upload status is true applies cataegory and if autodelete option is checked,applies the category
+                            if (uploadStatus == true)
+                            {
+                                XMLLogOptions userOptions = UserLogManagerUtility.GetUserConfigurationOptions();
+                                isDroppedItemUplaoded = true;
+                                  
+                                for (int i = 0; i <= activeDroppingFolder.Items.Count; i++)
+                                {
+                                    try
+                                    {
+                                        Outlook.MailItem me = (Outlook.MailItem)activeDroppingFolder.Items[i];
+                                        if (Globals.ThisAddIn.isMoveRunning == true)
+                                        {
+                                            if (me.Subject == moveMail.Subject)
+                                            {
+                                                me.Categories.Remove(0);
+                                                me.Categories = newCatName;
+                                                me.Save();
+                                                if (userOptions.AutoDeleteEmails == true)
+                                                {
+                                                    UserMailDeleteOption(mailitemEntryID, parentfolder);
+                                                }
+
+                                            }
+                                        }
+                                        if (Globals.ThisAddIn.isCopyRunninng == true)
+                                        {
+                                            if (me.Subject == moveMail.Subject)
+                                            {
+                                                me.Categories.Remove(0);
+                                                me.Categories = newCatName;
+                                                me.Save();
+                                                if (userOptions.AutoDeleteEmails == true)
+                                                {
+                                                    UserMailDeleteOption(mailitemEntryID, parentfolder);
+                                                }
+
+                                            }
+                                        }
+                                        if (me.EntryID == mailitemEntryID)
+                                        {
+                                            me.Categories.Remove(0);
+                                            me.Categories = newCatName;
+                                            me.Save();
+                                            if (userOptions.AutoDeleteEmails == true)
+                                            {
+                                                UserMailDeleteOption(mailitemEntryID, parentfolder);
+                                            }
+
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+
+
+                                    }
+                                }
+                                ///code in this section wriiten by Joy
+                                ///sets the progress bar according to move/copy/drag n drop
+                                if (Globals.ThisAddIn.isMoveRunning == true)
+                                {
+                                    frmUploadItemsListObject.lblPRStatus.Invoke(new updateProgresStatus(() =>
+                                    {
+                                        frmUploadItemsListObject.lblPRStatus.Text = Globals.ThisAddIn.no_of_moved_item_uploaded.ToString() + " " + "of" + " " + Globals.ThisAddIn.no_of_moved_item_to_be_uploaded.ToString() + " " + "Uploaded";
+                                    }));
+                                    frmUploadItemsListObject.progressBar1.Invoke(new updateProgessBar(() =>
+                                    {
+                                        frmUploadItemsListObject.progressBar1.Value = (((Globals.ThisAddIn.no_of_moved_item_uploaded * 100 / Globals.ThisAddIn.no_of_moved_item_to_be_uploaded)));
+                                    }));
+
+                                }
+                                else if(Globals.ThisAddIn.isCopyRunninng==true)
+                                {
+                                    frmUploadItemsListObject.lblPRStatus.Invoke(new updateProgresStatus(() =>
+                                    {
+                                        frmUploadItemsListObject.lblPRStatus.Text = Globals.ThisAddIn.no_of_copied_item_uploaded.ToString() + " " + "of" + " " + Globals.ThisAddIn.no_of_copied_item_to_be_uploaded.ToString() + " " + "Uploaded";
+                                    }));
+                                    frmUploadItemsListObject.progressBar1.Invoke(new updateProgessBar(() =>
+                                    {
+                                        frmUploadItemsListObject.progressBar1.Value = (((Globals.ThisAddIn.no_of_copied_item_uploaded * 100 / Globals.ThisAddIn.no_of_copied_item_to_be_uploaded)));
+                                    }));
+
+                                }
+                                else if(Globals.ThisAddIn.isMoveRunning==false)
+                                {
+                                    frmUploadItemsListObject.lblPRStatus.Invoke(new updateProgresStatus(() =>
+                                    {
+                                        frmUploadItemsListObject.lblPRStatus.Text = Globals.ThisAddIn.no_of_items_copied.ToString() + " " + "of" + " " + Globals.ThisAddIn.no_of_items_to_be_uploaded.ToString() + " " + "Uploaded";
+                                    }));
+                                    frmUploadItemsListObject.progressBar1.Invoke(new updateProgessBar(() =>
+                                    {
+                                        frmUploadItemsListObject.progressBar1.Value = (((Globals.ThisAddIn.no_of_items_copied * 100 / Globals.ThisAddIn.no_of_items_to_be_uploaded)));
+                                    }));
+
+                                }
+
+                            }
+                            else
+                            {
+                                isDroppedItemUplaoded = false;
+                            }
+
+                           
+                        }
+                        catch (Exception ex)
+                        {
+                            isDroppedItemUplaoded = MoveItemIsReportItem(Item);
+                        }
+
+                        try
+                        {
+                            if (isDroppedItemUplaoded == false)
+                            {
+                                //string tempName = oDocItem.Subject;
+                                string tempName = string.Empty;
+                                Outlook.DocumentItem oDocItem = (Outlook.DocumentItem)Item;
+
+
+                                try
+                                {
+
+                                    Outlook._MailItem myMailItem = (Outlook.MailItem)addinExplorer.Selection[1];
+                                    foreach (Outlook.Attachment oAttachment in myMailItem.Attachments)
+                                    {
+                                        if (oAttachment.FileName == oDocItem.Subject)
+                                        {
+                                            tempName = oAttachment.FileName;
+                                            tempName = tempName.Substring(tempName.LastIndexOf("."));
+                                            oAttachment.SaveAsFile(UserLogManagerUtility.RootDirectory + @"\tempattachment" + tempName);
+
+                                            //Read file data to bytes
+                                            //byte[] fileBytes = File.ReadAllBytes(UserLogManagerUtility.RootDirectory + @"\tempattachment" + tempName);
+                                            System.IO.FileStream Strm = new System.IO.FileStream(UserLogManagerUtility.RootDirectory + @"\tempattachment" + tempName, System.IO.FileMode.Open, System.IO.FileAccess.Read);
+                                            System.IO.BinaryReader reader = new System.IO.BinaryReader(Strm);
+                                            byte[] fileBytes = reader.ReadBytes(Convert.ToInt32(Strm.Length));
+                                            reader.Close();
+                                            Strm.Close();
+
+                                            //Replace any special characters are there in file name
+                                            string fileName = Regex.Replace(oAttachment.FileName, strAttachmentReplacePattern, " ");
+
+                                            //Add uplaod attachment item data to from list.
+                                            UploadItemsData newUploadData = new UploadItemsData();
+                                            newUploadData.UploadType = TypeOfUploading.Attachment;
+                                            newUploadData.AttachmentData = fileBytes;
+                                            newUploadData.DisplayFolderName = activeDroppingFolder.Name;
+
+
+                                            if (fileName.Contains("."))
+                                            {
+                                                newUploadData.UploadFileName = fileName.Substring(0, fileName.LastIndexOf("."));
+                                                newUploadData.UploadFileExtension = fileName.Substring(fileName.LastIndexOf("."));
+
+                                                if (string.IsNullOrEmpty(newUploadData.UploadFileName.Trim()))
+                                                {
+                                                    //check file name conatins empty add the date time 
+                                                    newUploadData.UploadFileName = "Untitled_" + DateTime.Now.ToFileTime();
+
+                                                }
+                                            }
+
+                                            //Add to form
+                                            frmUploadItemsListObject.UploadUsingDelegate(newUploadData);
+                                            //Set dropped mail attachment items is uploaded.
+                                            isDroppedItemUplaoded = true;
+                                            newUploadData = null;
+                                            //oDocItem.Delete();
+                                            break;
+                                        }
+                                    }
+                                }
+                                catch (InvalidCastException ex)
+                                {
+                                    //Set dropped mail attachment items is uploaded to false
+                                    isDroppedItemUplaoded = false;
+                                }
+
+                                if (isDroppedItemUplaoded == false)
+                                {
+                                    tempName = oDocItem.Subject;
+                                    tempName = tempName.Substring(tempName.LastIndexOf("."));
+                                    oDocItem.SaveAs(UserLogManagerUtility.RootDirectory + @"\tempattachment" + tempName, Type.Missing);
+
+                                    System.IO.FileStream Strm = new System.IO.FileStream(UserLogManagerUtility.RootDirectory + @"\tempattachment" + tempName, System.IO.FileMode.Open, System.IO.FileAccess.Read);
+                                    System.IO.BinaryReader reader = new System.IO.BinaryReader(Strm);
+                                    byte[] fileBytes = reader.ReadBytes(Convert.ToInt32(Strm.Length));
+                                    reader.Close();
+                                    Strm.Close();
+
+                                    //Replace any special characters are there in file name
+                                    string fileName = Regex.Replace(oDocItem.Subject, strAttachmentReplacePattern, " ");
+
+                                    //Add uplaod attachment item data to from list.
+                                    UploadItemsData newUploadData = new UploadItemsData();
+                                    newUploadData.UploadType = TypeOfUploading.Attachment;
+                                    newUploadData.AttachmentData = fileBytes;
+                                    newUploadData.DisplayFolderName = activeDroppingFolder.Name;
+
+
+                                    if (fileName.Contains("."))
+                                    {
+                                        newUploadData.UploadFileName = fileName.Substring(0, fileName.LastIndexOf("."));
+                                        newUploadData.UploadFileExtension = fileName.Substring(fileName.LastIndexOf("."));
+
+                                        if (string.IsNullOrEmpty(newUploadData.UploadFileName.Trim()))
+                                        {
+                                            //check file name conatins empty add the date time 
+                                            newUploadData.UploadFileName = "Untitled_" + DateTime.Now.ToFileTime();
+
+                                        }
+                                    }
+
+                                    //Add to form
+                                    frmUploadItemsListObject.UploadUsingDelegate(newUploadData);
+                                    newUploadData = null;
+                                    //oDocItem.Delete();
+                                }
+
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            //throw ex;
+                            //////////////////////////////updated by Joy on 28.07.2012///////////////////////////////////
+                            //  EncodingAndDecoding.ShowMessageBox("FolderItem Add Event_DocItem Conv", ex.Message, MessageBoxIcon.Error);
+                            //////////////////////////////updated by Joy on 28.07.2012///////////////////////////////////
+                        }
 
 
 
+
+                        try
+                        {
+                            XMLLogOptions userOptions = UserLogManagerUtility.GetUserConfigurationOptions();
+                            ///////////////////////////updated by Joy on 06.08.2012////////////////////////////////
+                            //if (userOptions.AutoDeleteEmails == true)
+                            //{
+                            //    for (int i = 0; i <= parentfolder.Items.Count; i++)
+                            //    {
+                            //        try
+                            //        {
+                            //            Outlook.MailItem me = (Outlook.MailItem)parentfolder.Items[i];
+
+                            //            if (me.EntryID == mailitemEntryID)
+                            //            {
+                            //                parentfolder.Items.Remove(i);
+
+                            //            }
+                            //        }
+                            //        catch (Exception)
+                            //        {
+
+
+                            //        }
+                            //    }
+                            //}
+                            ///////////////////////////updated by Joy on 06.08.2012////////////////////////////////
 
                         }
                         catch (Exception)
                         {
-                            NonDocMoveReportItem(Item);
+
+
                         }
-
-
-                        MessageBox.Show("You are attempting to move files to a non document library. This action is not supported.", "ITOPIA", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-                        return;
-
-                    }
-
-
-                    if (frmUploadItemsListObject == null || (frmUploadItemsListObject != null && frmUploadItemsListObject.IsDisposed == true))
-                    {
-                        frmUploadItemsListObject = new frmUploadItemsList();
-
-                        myCustomTaskPane = Globals.ThisAddIn.CustomTaskPanes.Add(frmUploadItemsListObject,"ITOPIA");
-                        myCustomTaskPane.Visible = true;
-                        
-                        myCustomTaskPane.DockPosition = Microsoft.Office.Core.MsoCTPDockPosition.msoCTPDockPositionFloating;
-                        myCustomTaskPane.DockPositionChanged += new EventHandler(myCustomTaskPane_DockPositionChanged);
-                        myCustomTaskPane.Height = 500;
-                        myCustomTaskPane.Width = 600;
-                        frmUploadItemsListObject.ShowForm(folderName);
-              
-
-                    }
-                    //frmUploadItemsListObject.TopLevel = true;
-                    //frmUploadItemsListObject.TopMost = true;
-
-                    frmUploadItemsListObject.Show();
-
-                    try
-                    {
-
-                        //////
-                        //////////
-                        Outlook.MailItem oMailItem = (Outlook.MailItem)Item;
-                        parentfolder = (Outlook.MAPIFolder)oMailItem.Parent;
-                        try
+                        if (!string.IsNullOrEmpty(mailitemEntryID))
                         {
-                            mailitem = oMailItem;
-
-                            mailitemEntryID = oMailItem.EntryID;
-
-                            string strsubject = oMailItem.EntryID;
-                            if (string.IsNullOrEmpty(strsubject))
+                            if (ItemType == TypeOfMailItem.ReportItem)
                             {
-                                strsubject = "tempomailcopy";
+                                UserReportItemDeleteOption(mailitemEntryID, parentfolder);
                             }
-
-
-                            mailitemEntryID = strsubject;
-
-                            string tempFilePath = UserLogManagerUtility.RootDirectory + "\\" + strsubject + ".msg";
-
-                            if (Directory.Exists(UserLogManagerUtility.RootDirectory) == false)
+                            else
                             {
-                                Directory.CreateDirectory(UserLogManagerUtility.RootDirectory);
-                            }
-                            oMailItem.SaveAs(tempFilePath, Outlook.OlSaveAsType.olMSG);
-
-
-                        }
-                        catch (Exception ex)
-                        {
-
-                        }
-
-                        string fileName = string.Empty;
-                        if (!string.IsNullOrEmpty(oMailItem.Subject))
-                        {
-                            //Replce any specila characters in subject
-                            fileName = Regex.Replace(oMailItem.Subject, strMailSubjectReplcePattern, " ");
-                            fileName = fileName.Replace(".", "_");
-                        }
-
-                        if (string.IsNullOrEmpty(fileName))
-                        {
-                            DateTime dtReceivedDate = Convert.ToDateTime(oMailItem.ReceivedTime);
-                            fileName = "Untitled_" + dtReceivedDate.Day + "_" + dtReceivedDate.Month + "_" + dtReceivedDate.Year + "_" + dtReceivedDate.Hour + "_" + dtReceivedDate.Minute + "_" + dtReceivedDate.Millisecond;
-                        }
-
-                        UploadItemsData newUploadData = new UploadItemsData();
-                        newUploadData.ElapsedTime = DateTime.Now;
-                        newUploadData.UploadFileName = fileName;// oMailItem.Subject;
-                        newUploadData.UploadFileExtension = ".msg";
-                        newUploadData.UploadingMailItem = oMailItem;
-                        newUploadData.UploadType = TypeOfUploading.Mail;
-                        newUploadData.DisplayFolderName = folderName;
-                        frmUploadItemsListObject.UploadUsingDelegate(newUploadData);
-                        //Set dropped items is uploaded
-                        isDroppedItemUplaoded = true;
-
-                    }
-                    catch (Exception ex)
-                    {
-                        isDroppedItemUplaoded = MoveItemIsReportItem(Item);
-                    }
-
-                    try
-                    {
-                        if (isDroppedItemUplaoded == false)
-                        {
-                            //string tempName = oDocItem.Subject;
-                            string tempName = string.Empty;
-                            Outlook.DocumentItem oDocItem = (Outlook.DocumentItem)Item;
-
-
-                            try
-                            {
-
-                                Outlook._MailItem myMailItem = (Outlook.MailItem)addinExplorer.Selection[1];
-                                foreach (Outlook.Attachment oAttachment in myMailItem.Attachments)
-                                {
-                                    if (oAttachment.FileName == oDocItem.Subject)
-                                    {
-                                        tempName = oAttachment.FileName;
-                                        tempName = tempName.Substring(tempName.LastIndexOf("."));
-                                        oAttachment.SaveAsFile(UserLogManagerUtility.RootDirectory + @"\tempattachment" + tempName);
-
-                                        //Read file data to bytes
-                                        //byte[] fileBytes = File.ReadAllBytes(UserLogManagerUtility.RootDirectory + @"\tempattachment" + tempName);
-                                        System.IO.FileStream Strm = new System.IO.FileStream(UserLogManagerUtility.RootDirectory + @"\tempattachment" + tempName, System.IO.FileMode.Open, System.IO.FileAccess.Read);
-                                        System.IO.BinaryReader reader = new System.IO.BinaryReader(Strm);
-                                        byte[] fileBytes = reader.ReadBytes(Convert.ToInt32(Strm.Length));
-                                        reader.Close();
-                                        Strm.Close();
-
-                                        //Replace any special characters are there in file name
-                                        string fileName = Regex.Replace(oAttachment.FileName, strAttachmentReplacePattern, " ");
-
-                                        //Add uplaod attachment item data to from list.
-                                        UploadItemsData newUploadData = new UploadItemsData();
-                                        newUploadData.UploadType = TypeOfUploading.Attachment;
-                                        newUploadData.AttachmentData = fileBytes;
-                                        newUploadData.DisplayFolderName = activeDroppingFolder.Name;
-
-
-                                        if (fileName.Contains("."))
-                                        {
-                                            newUploadData.UploadFileName = fileName.Substring(0, fileName.LastIndexOf("."));
-                                            newUploadData.UploadFileExtension = fileName.Substring(fileName.LastIndexOf("."));
-
-                                            if (string.IsNullOrEmpty(newUploadData.UploadFileName.Trim()))
-                                            {
-                                                //check file name conatins empty add the date time 
-                                                newUploadData.UploadFileName = "Untitled_" + DateTime.Now.ToFileTime();
-
-                                            }
-                                        }
-
-                                        //Add to form
-                                        frmUploadItemsListObject.UploadUsingDelegate(newUploadData);
-                                        //Set dropped mail attachment items is uploaded.
-                                        isDroppedItemUplaoded = true;
-                                        newUploadData = null;
-                                        //oDocItem.Delete();
-                                        break;
-                                    }
-                                }
-                            }
-                            catch (InvalidCastException ex)
-                            {
-                                //Set dropped mail attachment items is uploaded to false
-                                isDroppedItemUplaoded = false;
-                            }
-
-                            if (isDroppedItemUplaoded == false)
-                            {
-                                tempName = oDocItem.Subject;
-                                tempName = tempName.Substring(tempName.LastIndexOf("."));
-                                oDocItem.SaveAs(UserLogManagerUtility.RootDirectory + @"\tempattachment" + tempName, Type.Missing);
-
-                                System.IO.FileStream Strm = new System.IO.FileStream(UserLogManagerUtility.RootDirectory + @"\tempattachment" + tempName, System.IO.FileMode.Open, System.IO.FileAccess.Read);
-                                System.IO.BinaryReader reader = new System.IO.BinaryReader(Strm);
-                                byte[] fileBytes = reader.ReadBytes(Convert.ToInt32(Strm.Length));
-                                reader.Close();
-                                Strm.Close();
-
-                                //Replace any special characters are there in file name
-                                string fileName = Regex.Replace(oDocItem.Subject, strAttachmentReplacePattern, " ");
-
-                                //Add uplaod attachment item data to from list.
-                                UploadItemsData newUploadData = new UploadItemsData();
-                                newUploadData.UploadType = TypeOfUploading.Attachment;
-                                newUploadData.AttachmentData = fileBytes;
-                                newUploadData.DisplayFolderName = activeDroppingFolder.Name;
-
-
-                                if (fileName.Contains("."))
-                                {
-                                    newUploadData.UploadFileName = fileName.Substring(0, fileName.LastIndexOf("."));
-                                    newUploadData.UploadFileExtension = fileName.Substring(fileName.LastIndexOf("."));
-
-                                    if (string.IsNullOrEmpty(newUploadData.UploadFileName.Trim()))
-                                    {
-                                        //check file name conatins empty add the date time 
-                                        newUploadData.UploadFileName = "Untitled_" + DateTime.Now.ToFileTime();
-
-                                    }
-                                }
-
-                                //Add to form
-                                frmUploadItemsListObject.UploadUsingDelegate(newUploadData);
-                                newUploadData = null;
-                                //oDocItem.Delete();
-                            }
-
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        //throw ex;
-                        EncodingAndDecoding.ShowMessageBox("FolderItem Add Event_DocItem Conv", ex.Message, MessageBoxIcon.Error);
-                    }
-
-
-
-
-                    try
-                    {
-                        XMLLogOptions userOptions = UserLogManagerUtility.GetUserConfigurationOptions();
-                        if (userOptions.AutoDeleteEmails == true)
-                        {
-                            for (int i = 0; i <= parentfolder.Items.Count; i++)
-                            {
-                                try
-                                {
-                                    Outlook.MailItem me = (Outlook.MailItem)parentfolder.Items[i];
-
-                                    if (me.EntryID == mailitemEntryID)
-                                    {
-                                        parentfolder.Items.Remove(i);
-
-                                    }
-                                }
-                                catch (Exception)
-                                {
-
-
-                                }
+                                ///////////////////////////Updated by Joy on 16.08.2012....to be updated later///////////////////////////////
+                                //UserMailDeleteOption(mailitemEntryID, parentfolder);
+                                ///////////////////////////Updated by Joy on 16.08.2012....to be updated later///////////////////////////////
                             }
                         }
 
-                    }
-                    catch (Exception)
-                    {
-
-
-                    }
-                    if (!string.IsNullOrEmpty(mailitemEntryID))
-                    {
-                        if (ItemType == TypeOfMailItem.ReportItem)
-                        {
-                            UserReportItemDeleteOption(mailitemEntryID, parentfolder);
-                        }
-                        else
-                        {
-                            UserMailDeleteOption(mailitemEntryID, parentfolder);
-                        }
                     }
 
                 }
+                catch (Exception ex)
+                {
+                    EncodingAndDecoding.ShowMessageBox("Folder Item Add Event", ex.Message, MessageBoxIcon.Error);
 
+                }
+
+                //AddToUploadList(Item);
             }
-            catch (Exception ex)
-            {
-                EncodingAndDecoding.ShowMessageBox("Folder Item Add Event", ex.Message, MessageBoxIcon.Error);
-
-            }
-
-            //AddToUploadList(Item);
+            
         }
+        /// <summary>
+        /// BaclkgoroundWorker's DoWork Event runs in background
+        /// code Written by Joy
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        protected void bw_DoWork(object sender, EventArgs e)
+        {
+
+
+
+            if (Globals.ThisAddIn.isMoveRunning == false && Globals.ThisAddIn.isCopyRunninng==false)
+            {
+                Globals.ThisAddIn.isuploadRunning = true;
+                foreach (Object obj in Globals.ThisAddIn.oselection)
+                {
+                    if (obj is Outlook.MailItem)
+                    {
+                        mailitem = (Outlook.MailItem)obj;
+                        doUploading(mailitem);
+                    }
+                }
+                Globals.ThisAddIn.isuploadRunning = false;
+            }
+            else if (Globals.ThisAddIn.isMoveRunning == true)
+            {
+                foreach (Object obj in Globals.ThisAddIn.moveSelected)
+                {
+                    if (obj is Outlook.MailItem)
+                    {
+                        mailitem = (Outlook.MailItem)obj;
+                        doUploading(mailitem);
+                        
+                    }
+                }
+                Globals.ThisAddIn.isMoveRunning = false;
+                Globals.ThisAddIn.moveSelected = null;
+                Globals.ThisAddIn.isuploadRunning = false;
+            }
+            else if (Globals.ThisAddIn.isCopyRunninng == true)
+            {
+                foreach (Object obj in Globals.ThisAddIn.copySelected)
+                {
+                    if (obj is Outlook.MailItem)
+                    {
+                        mailitem = (Outlook.MailItem)obj;
+                        doUploading(mailitem);
+
+                    }
+                }
+                Globals.ThisAddIn.isCopyRunninng = false;
+                Globals.ThisAddIn.copySelected = null;
+                Globals.ThisAddIn.isuploadRunning = false;
+            }
+           
+        }
+        /// <summary>
+        /// this event fires when an item is added to the mapped folder
+        /// code totally modified and written by Joy
+        /// </summary>
+        /// <param name="Item"></param>
+        void activeDroppingFolderItems_ItemAdd(object Item)
+        {
+
+            // bw = new BackgroundWorker();
+            Outlook.MailItem moveMail = (Outlook.MailItem)Item;
+            string customCatName = "Pending Uploads";
+            if (Globals.ThisAddIn.Application.Session.Categories[customCatName] == null)
+            {
+                outlookNameSpace.Categories.Add(customCatName, Outlook.OlCategoryColor.olCategoryColorOrange, Outlook.OlCategoryShortcutKey.olCategoryShortcutKeyNone);
+            }
+            string newCatName = "Successfully Uploaded";
+            if (Globals.ThisAddIn.Application.Session.Categories[newCatName] == null)
+            {
+                outlookNameSpace.Categories.Add(newCatName, Outlook.OlCategoryColor.olCategoryColorDarkGreen, Outlook.OlCategoryShortcutKey.olCategoryShortcutKeyNone);
+            }
+            moveMail.Categories = customCatName;
+            moveMail.Save();
+            if (bw == null)
+            {
+                bw = new BackgroundWorker();
+                bw.DoWork += new DoWorkEventHandler(bw_DoWork);
+                GC.KeepAlive(bw);
+            }
+            //bw.DoWork += delegate(object sender, DoWorkEventArgs e) { bw_DoWork(sender, e, Item); }; 
+           // bw.DoWork += delegate(object sender, DoWorkEventArgs e) { bw_DoWork(sender, e, Item); }; 
+            //bw.RunWorkerCompleted += new RunWorkerCompletedEventHandler(bw_RunWorkerCompleted);
+            if (!bw.IsBusy)
+            {
+                bw.RunWorkerAsync();
+            }
+          
+            
+
+        }
+
+       
+
+      /// <summary>
+      /// Fires when custom taskpane's dock postion is being changed
+      /// code written by Joy
+      /// </summary>
+      /// <param name="sender"></param>
+      /// <param name="e"></param>
 
         void myCustomTaskPane_DockPositionChanged(object sender, EventArgs e)
         {
-            myCustomTaskPane.DockPosition = Microsoft.Office.Core.MsoCTPDockPosition.msoCTPDockPositionFloating;
+            Globals.ThisAddIn.myCustomTaskPane.DockPosition = Microsoft.Office.Core.MsoCTPDockPosition.msoCTPDockPositionFloating;
         }
 
 
@@ -623,10 +990,12 @@ namespace SharePoint_Link
                                     {
                                         if (df.Name.ToLower().StartsWith("deleted"))
                                         {
+                                            oMailItem.Categories = null;
                                             oMailItem.Move(df);
                                         }
                                     }
                                     //
+                                    
                                     for (int i = 0; i <= fp.Items.Count; i++)
                                     {
                                         try

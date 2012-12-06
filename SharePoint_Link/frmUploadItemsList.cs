@@ -21,6 +21,10 @@ using Utility;
 
 namespace SharePoint_Link
 {
+    /// <summary>
+    ///many code of this class has been modfide and written by written by Joy
+    /// it was previously a windows form,but replaced with an user control so to add it in custom taskpane
+    /// </summary>
     public partial class frmUploadItemsList : UserControl
     {
         #region Constructor
@@ -30,7 +34,11 @@ namespace SharePoint_Link
         /// holds the error message to be displayed
         /// </summary>
         private static string upLoadErrorMessage = string.Empty;
-
+        /// <summary>
+        /// code wriiten by Joy
+        /// this variable is used to store the upload status
+        /// </summary>
+        bool isSuccessfullyCompleted;
         /// <summary>
         /// <c>UpLoadErrorMessage</c> member property
         /// encapsulates upLoadErrorMessage member field
@@ -51,7 +59,7 @@ namespace SharePoint_Link
         {
             InitializeComponent();
             UserLogManagerUtility.CheckItopiaDirectoryExits();
-
+           
         }
         #endregion
         #region Delegate
@@ -63,6 +71,9 @@ namespace SharePoint_Link
         /// </summary>
         /// <param name="isuploadingcompleted"></param>
         delegate void DelegateHidePanel(bool isuploadingcompleted);
+
+
+        delegate void UIUpdaterDelegate();
 
         /// <summary>
         /// <c>DelegateUplaodData</c> 
@@ -86,6 +97,7 @@ namespace SharePoint_Link
         /// <param name="currentItem"></param>
         delegate void DelegateUpdateGridRow(bool uploadResult, string outMessage, string outURL, UploadItemsData currentItem);
 
+        int currentRowIndex;
         #endregion
 
         #region Global Variables
@@ -207,6 +219,12 @@ namespace SharePoint_Link
 
                 m_isUploadingCompleted = false;
                 HideProgressPanel(m_isUploadingCompleted);
+                //code written by Joy]
+                //invoke is used to avoid error-cross thread operation not valid
+                this.Invoke(new MethodInvoker(delegate
+                {
+                    lblPleaseWaitMessage.Text = "Please Wait - Uploading Items";
+                }));
                 this.Refresh();
                 //Create instance for the API
                 //  copyws = new SPCopyService.Copy();
@@ -346,21 +364,45 @@ namespace SharePoint_Link
             try
             {
                 ThisAddIn.IsMailItemUploaded = uploadResult;
-
+               
                 DateTime dtStart = DateTime.Now;
                 //Add item to grid
-                int currentRowIndex = this.dgvUploadImages.Rows.Add(SharePoint_Link.Properties.Resources.PROCESS_READY, "", "Waiting....", currentItem.UploadFileName, 0, currentItem.DisplayFolderName);
+                //code written by Joy]
+                //invoke is used to avoid error-cross thread operation not valid
+                this.dgvUploadImages.Invoke(new UIUpdaterDelegate(()=>
+               {
+                      currentRowIndex = this.dgvUploadImages.Rows.Add(SharePoint_Link.Properties.Resources.PROCESS_READY, "", "Waiting....", currentItem.UploadFileName, 0, currentItem.DisplayFolderName);
+                }));
+
+                
+               
 
                 //simulate two states of current step: success or failure
                 if (uploadResult == true)
                 {
+                    //code written by Joy]
+                    //invoke is used to avoid error-cross thread operation not valid
+                     this.Invoke(new MethodInvoker(delegate
 
-
-                    lblPleaseWaitMessage.Text = "Upload completed for " + currentItem.UploadFileName;
-
-                    this.dgvUploadImages.Rows[currentRowIndex].Cells["colStatusImage"].Value = SharePoint_Link.Properties.Resources.ok_16;
-                    if (string.IsNullOrEmpty(outMessage))
                     {
+
+                        lblPleaseWaitMessage.Text = "Upload completed for " + currentItem.UploadFileName;
+
+                    }));
+
+                     //code written by Joy]
+                     //invoke is used to avoid error-cross thread operation not valid
+                   
+                         this.dgvUploadImages.Invoke(new UIUpdaterDelegate(()=>
+               {
+                    this.dgvUploadImages.Rows[currentRowIndex].Cells["colStatusImage"].Value = SharePoint_Link.Properties.Resources.ok_16;
+               }));
+                   if (string.IsNullOrEmpty(outMessage))
+                    {
+                        //code written by Joy]
+                        //invoke is used to avoid error-cross thread operation not valid
+                        this.dgvUploadImages.Invoke(new UIUpdaterDelegate(()=>
+                            {
                         this.dgvUploadImages.Rows[currentRowIndex].Cells["colCurrentStatus"].Value = "" +
                             "Unable to read uploaded item inforamtion from list." +
                             "List Name contains special characters.";
@@ -368,39 +410,69 @@ namespace SharePoint_Link
                         //Uploading completed sucessfully.There is a problem with reading item from list.";
                         this.dgvUploadImages.Rows[currentRowIndex].Cells["colEdit"].Value = "View";
                         this.dgvUploadImages.Rows[currentRowIndex].Cells["colEdit"].Tag = outURL;
-
+                            }));
 
                     }
                     else
                     {
+                        //code written by Joy]
+                        //invoke is used to avoid error-cross thread operation not valid
+                         this.dgvUploadImages.Invoke(new UIUpdaterDelegate(()=>
+                            {
                         this.dgvUploadImages.Rows[currentRowIndex].Cells["colCurrentStatus"].Value = "Upload Completed.";
                         this.dgvUploadImages.Rows[currentRowIndex].Cells["colEdit"].Value = "MetaTags";
                         this.dgvUploadImages.Rows[currentRowIndex].Cells["colEdit"].Tag = outURL;
+                            }));
                     }
                     //Change the file name with modified file name
                     if (currentItem.UploadType == TypeOfUploading.Attachment)
                     {
+                        //code written by Joy]
+                        //invoke is used to avoid error-cross thread operation not valid
+                         this.dgvUploadImages.Invoke(new UIUpdaterDelegate(()=>
+                            {
                         this.dgvUploadImages.Rows[currentRowIndex].Cells["colMailSubject"].Value = currentItem.UploadFileName;// currentItem.UploadFileName;
-                    }
+                            }));
+                         }
                     else
                     {
+                        //code written by Joy]
+                        //invoke is used to avoid error-cross thread operation not valid
+                          this.dgvUploadImages.Invoke(new UIUpdaterDelegate(()=>
+                            {
                         this.dgvUploadImages.Rows[currentRowIndex].Cells["colMailSubject"].Value = currentItem.MailSubject;// currentItem.UploadFileName;
-                    }
+                            }));
+                            }
 
                     //Update uploaded time in xml file
                     UserLogManagerUtility.UpdateFolderConfigNodeDetails(currentItem.DisplayFolderName, "LastUpload", DateTime.Now.ToString());
                 }
                 else
                 {
-                    lblPleaseWaitMessage.Text = "Upload failed for " + currentItem.UploadFileName;
+                    //code written by Joy]
+                    //invoke is used to avoid error-cross thread operation not valid
+                   // lblPleaseWaitMessage.Text = "Upload failed for " + currentItem.UploadFileName;
+                    this.dgvUploadImages.Invoke(new UIUpdaterDelegate(()=>
+                            {
                     this.dgvUploadImages.Rows[currentRowIndex].Cells["colStatusImage"].Value = SharePoint_Link.Properties.Resources.exclamation_red;
                     this.dgvUploadImages.Rows[currentRowIndex].Cells["colCurrentStatus"].Value = "Error ::" + outMessage;
-
+                            }));
                 }
-
+                //code written by Joy]
+                //invoke is used to avoid error-cross thread operation not valid
+                this.dgvUploadImages.Invoke(new UIUpdaterDelegate(()=>
+                            {
                 this.dgvUploadImages.Rows[currentRowIndex].Cells["colElapsedTime"].Value = ((TimeSpan)(DateTime.Now - currentItem.ElapsedTime)).TotalSeconds.ToString("#,##0.00");// +" secs";// ((TimeSpan)(DateTime.Now - dtStart)).TotalSeconds.ToString("#,##0.00") + " secs";
+                            }));
+                 this.Invoke(new MethodInvoker(delegate
+                  {
                 this.Refresh();
+                  }));
                 float elapsedtime = 0.0F;
+                //code written by Joy]
+                //invoke is used to avoid error-cross thread operation not valid
+                 this.Invoke(new MethodInvoker(delegate
+                  {
                 foreach (DataGridViewRow row in dgvUploadImages.Rows)
                 {
                     try
@@ -413,7 +485,13 @@ namespace SharePoint_Link
                     }
 
                 }
+                  }));
+                  this.Invoke(new MethodInvoker(delegate
+
+                    {
+
                 lblTimeElapsed.Text = "Time Elapsed: " + elapsedtime.ToString();
+                    }));
             }
 
             catch (Exception ex)
@@ -442,15 +520,22 @@ namespace SharePoint_Link
         /// Method to show/hide the control on forms
         /// </summary>
         /// <param name="value"></param>
+       ////////////////////////////updated by Joy on 30.07.2012/////////////////////////////////
+        
         protected void ti_tick(object sender, EventArgs e)
         {
-            HideProgressPanel(true);
-        }
 
+            HideProgressPanel(true);
+            Timer t_stop = sender as Timer;
+            t_stop.Stop();
+            
+        }
+        ////////////////////////////updated by Joy on 30.07.2012/////////////////////////////////
         /// <summary>
         /// <c>HideProgressPanel</c> member function 
         /// hide or display progress bar based on uploading status.
         /// hide if the uploading status is true otherwise  display
+        /// code has been modified by Joy
         /// </summary>
         /// <param name="m_isUploadingCompleted"></param>
         public void HideProgressPanel(bool m_isUploadingCompleted)
@@ -459,6 +544,8 @@ namespace SharePoint_Link
 
             if (m_isUploadingCompleted == true)
             {
+                //code written by Joy
+                //invoke is used to avoid error-cross thread operation not valid
 
                 //  pictureBox1.Visible = false;
                 //  lblPleaseWaitMessage.Visible = false;
@@ -467,17 +554,27 @@ namespace SharePoint_Link
                 //this.Opacity = 1;
 
                 //  dgvUploadImages.Visible = true;
+                //code written by Joy]
+                //invoke is used to avoid error-cross thread operation not valid
+                 this.Invoke(new MethodInvoker(delegate
+
+                    {
                 pictureBox1.Visible = false;
                 lblPleaseWaitMessage.Visible = false;
                 dgvUploadImages.Enabled = true;
                 ////this.Opacity = 1;
                 //dgvUploadImages.Visible = true;
                 this.Text = "Uploading Status: Completed ";
-
+                    }));
 
             }
             else
             {
+                //code written by Joy]
+                //invoke is used to avoid error-cross thread operation not valid
+                  this.Invoke(new MethodInvoker(delegate
+
+                    {
                 pictureBox1.Visible = true;
                 lblPleaseWaitMessage.Visible = true;
                 dgvUploadImages.Enabled = true; // false;
@@ -486,7 +583,8 @@ namespace SharePoint_Link
                 //IntPtr Hicon = Properties.Resources.wait.GetHicon();
                 //this.Icon = System.Drawing.Icon.FromHandle(Hicon);
                 this.Text = "Uploading Status: In progress ... ";
-
+                this.Text = "Uploading Status: Completed ";
+                    }));
 
             }
         }
@@ -558,13 +656,22 @@ namespace SharePoint_Link
         /// <c>UploadUsingDelegate</c> event handler 
         /// invokes <c>UploadItemUsingWebClientAPI</c> member function to start 
         /// uploading files to sharepoint mapped document library
+        /// code written by Joy
         /// </summary>
         /// <param name="uploadData"></param>
         public void UploadUsingDelegate(UploadItemsData uploadData)
         {
             // HideProgressPanel(false);
-            DelegateUploadItemUsingCopyService pdSteps = new DelegateUploadItemUsingCopyService(UploadItemUsingWebClientAPI);
-            this.Invoke(pdSteps, new object[] { uploadData });
+            //BackgroundWorker bw = new BackgroundWorker();
+            //bw.DoWork += delegate(object sender, DoWorkEventArgs e) { bw_DoWork(sender, e, uploadData); }; 
+            //bw.RunWorkerAsync();
+            bool successfullyuploaded;
+           
+            //DelegateUploadItemUsingCopyService pdSteps = new DelegateUploadItemUsingCopyService(UploadItemUsingWebClientAPI);
+           
+            //this.Invoke(pdSteps, new object[] { uploadData });   
+            UploadItemUsingWebClientAPI(uploadData);
+            
             //Timer ti = new Timer();
             //ti.Interval = 5000;
             //ti.Start();
@@ -582,9 +689,9 @@ namespace SharePoint_Link
         {
             try
             {
-
-
+              
                 System.Net.ServicePointManager.CertificatePolicy = new TrustAllCertificatePolicy();
+                
                 m_WC = new WebClient();
                 m_WC.UploadDataCompleted += new UploadDataCompletedEventHandler(m_WC_UploadDataCompleted);
                 m_isUploadingCompleted = false;
@@ -597,7 +704,7 @@ namespace SharePoint_Link
 
                 if (uploadData.UploadType == TypeOfUploading.Mail)
                 {
-
+                   
                     //Get mail item
 
                     string tempFilePath = UserLogManagerUtility.RootDirectory + @"\\temp.msg";
@@ -605,6 +712,7 @@ namespace SharePoint_Link
                     if (Directory.Exists(UserLogManagerUtility.RootDirectory) == false)
                     {
                         Directory.CreateDirectory(UserLogManagerUtility.RootDirectory);
+                        
                     }
                     string msgbody = "";
                     if (uploadData.TypeOfMailItem == TypeOfMailItem.ReportItem)
@@ -615,11 +723,12 @@ namespace SharePoint_Link
                     }
                     else
                     {
+                       
                         Outlook.MailItem omail = uploadData.UploadingMailItem;
+                        
                         omail.SaveAs(tempFilePath, Outlook.OlSaveAsType.olMSG);
-
                         msgbody = omail.SentOn.ToString();
-
+                       
                     }
 
 
@@ -630,13 +739,15 @@ namespace SharePoint_Link
 
                     //Read data to byte
                     fileBytes = File.ReadAllBytes(tempFilePath);
+                    
 
 
                     ListWebClass.ComputeHashSP07(fileBytes, msgbody);
+                   
                     uploadData.MailSubject = HashingClass.Mailsubject;
-
+                   
                     uploadData.UploadFileName = HashingClass.Hashedemailbody.ToString().Trim() + uploadData.UploadFileExtension; // uploadData.UploadFileName.Trim()
-
+                  
 
                 }
                 else
@@ -654,47 +765,75 @@ namespace SharePoint_Link
 
                 //string destinationUrls = m_LibSite + m_uploadDocLibraryName + "/" + uploadData.UploadFileName;
                 string destinationUrls = m_sharepointLibraryURL.Substring(0, m_sharepointLibraryURL.LastIndexOf("Forms")) + uploadData.UploadFileName;
+               
                 cmproperties.LibSite = m_LibSite;
+               
                 cmproperties.UploadDocLibraryName = m_uploadDocLibraryName;
+               
                 cmproperties.FileBytes = fileBytes;
+               
                 cmproperties.UserName = m_userName;
+                
                 cmproperties.Password = m_password;
-
+               
                 ///Upload Files to Sharepoint site
                 if (SPVersionClass.SPSiteVersion == SPVersionClass.SiteVersion.SP2010.ToString())
                 {
+                    
                     //for SharePoint2010
                     bool docuploaded = false;
+                   
                     string libsitestr = cmproperties.LibSite;
+                    
                     docuploaded = ListWebClass.uploadFilestoLibraryUsingClientOM(uploadData, cmproperties);
-                    HideProgressPanel(false);
+                    
+                    //HideProgressPanel(false);
                     if (docuploaded == true)
                     {
-
+                       
                         m_isUploadingCompleted = true;
                         string pth = libsitestr + cmproperties.UploadDocLibraryName + "/Forms/EditForm.aspx?ID=" + ListWebClass.FileID + "&IsDlg=1&UpFName=" + uploadData.UploadFileName;
-                        DelegateUpdateGridRow pdSteps = new DelegateUpdateGridRow(UpdataGridRows);
-                        this.Invoke(pdSteps, new object[] { true, "Success", pth, uploadData });
-
-
-
+                        //DelegateUpdateGridRow pdSteps = new DelegateUpdateGridRow();
+                        UpdataGridRows(true, "Success", pth, uploadData);
+                        //this.Invoke(pdSteps, new object[] { true, "Success", pth, uploadData });
+                        //////////////////////////modified by joy on 27.07.2012////////////////////////////////////////
+                        isSuccessfullyCompleted = true;
+                        //code written by Joy
+                        //increments the no of uploaded items
+                        Globals.ThisAddIn.no_of_items_copied++;
+                        Globals.ThisAddIn.no_of_moved_item_uploaded++;
+                        Globals.ThisAddIn.no_of_copied_item_uploaded++;
+                        Globals.ThisAddIn.no_of_t_item_uploaded++;
+                        
                     }
                     else
                     {
-                        m_isUploadingCompleted = true;
-                        DelegateUpdateGridRow pdSteps = new DelegateUpdateGridRow(UpdataGridRows);
-                        this.Invoke(pdSteps, new object[] { false, "Exception While Uploading." + UpLoadErrorMessage, " ", uploadData });
+                        //////////////////////////modified by joy on 27.07.2012////////////////////////////////////////
+   
+                        m_isUploadingCompleted = false;
+                        UpdataGridRows(false, "Exception While Uploading." + UpLoadErrorMessage, " ", uploadData);
+                       
+                        //////////////////////////modified by joy on 27.07.2012////////////////////////////////////////
+   
+                        isSuccessfullyCompleted = false;
 
                     }
+                    
 
+                    //////////////////////////modified by joy on 30.07.2012////////////////////////////////////////
                     Timer ti = new Timer();
                     ti.Interval = 2000;
                     ti.Start();
+                    //code written by Joy]
+                    //invoke is used to avoid error-cross thread operation not valid
+                     this.Invoke(new MethodInvoker(delegate
+
+                    {
                     lblPleaseWaitMessage.Text = "  Upload completed  ";
-
+                    }));
                     ti.Tick += new EventHandler(ti_tick);
-                    //HideProgressPanel(true);
-
+                    HideProgressPanel(true);
+                    //////////////////////////modified by joy on 30.07.2012////////////////////////////////////////
 
                 }
                 else
@@ -754,6 +893,19 @@ namespace SharePoint_Link
         }
 
         /// <summary>
+        /// code written by Joy
+        /// this method returns the upload status for a currently uploading mail item
+        /// </summary>
+        public bool IsSuccessfullyUploaded
+        {
+            get
+            {
+              return  isSuccessfullyCompleted;
+            }
+        }
+        
+        
+/// <summary>
         /// <c>UploadItemUsingCopyService</c>
         /// Upload Items using copy web service API
         /// calls <c>SPCopyClass.UploadItemUsingCopyService(</c> method to start uploading file to sharepoint 2007 mappped sharepoint
@@ -890,8 +1042,8 @@ namespace SharePoint_Link
                             outMessage = ex.Message;
                         }
                         m_isUploadingCompleted = true;
-                        DelegateUpdateGridRow pdSteps = new DelegateUpdateGridRow(UpdataGridRows);
-                        this.Invoke(pdSteps, new object[] { false, outMessage, sucessURL, uploadData });
+                        UpdataGridRows(false, outMessage, sucessURL, uploadData);
+                      
 
                         //return false;
                     }
@@ -1031,8 +1183,8 @@ namespace SharePoint_Link
                             outMessage = oMessage;
 
                             m_isUploadingCompleted = true;
-                            DelegateUpdateGridRow pdSteps = new DelegateUpdateGridRow(UpdataGridRows);
-                            this.Invoke(pdSteps, new object[] { false, outMessage, sucessURL, uploadData });
+                            UpdataGridRows(false, outMessage, sucessURL, uploadData);
+                           
 
                             //return false;
                         }
@@ -1073,8 +1225,8 @@ namespace SharePoint_Link
                         outMessage = ex.InnerException.Message;
                     }
                     m_isUploadingCompleted = true;
-                    DelegateUpdateGridRow pdSteps = new DelegateUpdateGridRow(UpdataGridRows);
-                    this.Invoke(pdSteps, new object[] { false, "Exception in CopyIntoItemsCompleted Event." + outMessage, sucessURL, uploadData });
+                    UpdataGridRows(false, "Exception in CopyIntoItemsCompleted Event." + outMessage, sucessURL, uploadData);
+                   
                     // ShowMessageBox(ex.Message, MessageBoxIcon.Error);
                 }
 
@@ -1102,18 +1254,18 @@ namespace SharePoint_Link
         ////modified code on 20.07.2012-Joy
         ///
         ////////////////////////////////////////////////////////////////////////////
-        private void frmProgress_FormClosing(object sender, FormClosingEventArgs e)
-        {
-            //Check is there any message is in process, cancel the form closing.
-            if (m_isUploadingCompleted == false)
-            {
-                e.Cancel = true;
-            }
-            else
-            {
-                ThisAddIn.IsUploadingFormIsOpen = false;
-            }
-        }
+        //private void frmProgress_FormClosing(object sender, FormClosingEventArgs e)
+        //{
+        //    //Check is there any message is in process, cancel the form closing.
+        //    if (m_isUploadingCompleted == false)
+        //    {
+        //        e.Cancel = true;
+        //    }
+        //    else
+        //    {
+        //        ThisAddIn.IsUploadingFormIsOpen = false;
+        //    }
+        //}
         //////////////////////////////////////////////////////////////////////////////
         ///
         ////modified code on 20.07.2012-Joy
@@ -1154,24 +1306,37 @@ namespace SharePoint_Link
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+        /// 
+        ////////////////////////////////////////////////////////////////////////////
+        /// <summary>
+        /// Modified by joy on 21.07.2012
+        /// </summary>
+
+        ////////////////////////////////////////////////////////////////////////////
         private void toolStripSplitButtonClose_ButtonClick(object sender, EventArgs e)
         {
             if (m_isUploadingCompleted == false)
             {
-                DialogResult result = MessageBox.Show("Closing window will cancel the upload.Do you want to close this window?", "ITOPIA", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
+                DialogResult result = MessageBox.Show("Closing window will run the upload in background.Do you want to close this window?", "ITOPIA", MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
                 if (result == DialogResult.OK)
                 {
                     m_isUploadingCompleted = true;
-                    this.ParentForm.Close();
+                    Globals.ThisAddIn.CustomTaskPanes[0].Visible = false;
                 }
             }
             else
             {
-                this.ParentForm.Close();
+                Globals.ThisAddIn.CustomTaskPanes[0].Visible = false;
             }
 
         }
-
+        ////////////////////////////////////////////////////////////////////////////
+        /// <summary>
+        /// Modified by joy on 21.07.2012
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        /// //////////////////////////////////////////////////////////////////////
 
         /// <summary>
         /// <c>frmUploadItemsList_Resize</c> Event Handler
@@ -1179,6 +1344,9 @@ namespace SharePoint_Link
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+        /// ///////////////////////////////////////////////////////////////
+        /// ///////////////Modified code by Joy on 20.07.2012////////////// 
+        /// ///////////////////////////////////////////////////////////////
         private void frmUploadItemsList_Resize(object sender, EventArgs e)
         {
             try
@@ -1193,7 +1361,10 @@ namespace SharePoint_Link
             catch (Exception ex)
             { }
         }
-
+        /// ///////////////////////////////////////////////////////////////
+        /// ///////////////Modified code by Joy on 20.07.2012////////////// 
+        /// ///////////////////////////////////////////////////////////////
+        
 
         /// <summary>
         /// <c>GetListItemsAsyncWrapper</c> wrapper function
@@ -1440,5 +1611,10 @@ namespace SharePoint_Link
             }
 
         }
+
+      
+     
+
+       
     }
 }

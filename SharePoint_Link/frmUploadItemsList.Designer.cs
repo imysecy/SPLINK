@@ -35,8 +35,6 @@
         /// </summary>
         private void InitializeComponent()
         {
-            components = new System.ComponentModel.Container();
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.dgvUploadImages = new System.Windows.Forms.DataGridView();
             this.colStatusImage = new System.Windows.Forms.DataGridViewImageColumn();
             this.colEdit = new System.Windows.Forms.DataGridViewLinkColumn();
@@ -48,8 +46,10 @@
             this.toolStripSplitButtonClose = new System.Windows.Forms.ToolStripSplitButton();
             this.toolStripStatusLabel1 = new System.Windows.Forms.ToolStripStatusLabel();
             this.lblPleaseWaitMessage = new System.Windows.Forms.Label();
-            this.pictureBox1 = new System.Windows.Forms.PictureBox();
             this.lblTimeElapsed = new System.Windows.Forms.Label();
+            this.progressBar1 = new System.Windows.Forms.ProgressBar();
+            this.lblPRStatus = new System.Windows.Forms.Label();
+            this.pictureBox1 = new System.Windows.Forms.PictureBox();
             ((System.ComponentModel.ISupportInitialize)(this.dgvUploadImages)).BeginInit();
             this.statusStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
@@ -175,6 +175,30 @@
             this.lblPleaseWaitMessage.TabIndex = 1;
             this.lblPleaseWaitMessage.Text = "Please Wait - Uploading Items";
             // 
+            // lblTimeElapsed
+            // 
+            this.lblTimeElapsed.AutoSize = true;
+            this.lblTimeElapsed.Location = new System.Drawing.Point(539, 544);
+            this.lblTimeElapsed.Name = "lblTimeElapsed";
+            this.lblTimeElapsed.Size = new System.Drawing.Size(74, 13);
+            this.lblTimeElapsed.TabIndex = 7;
+            this.lblTimeElapsed.Text = "Elapsed Time:";
+            // 
+            // progressBar1
+            // 
+            this.progressBar1.Location = new System.Drawing.Point(116, 396);
+            this.progressBar1.Name = "progressBar1";
+            this.progressBar1.Size = new System.Drawing.Size(422, 23);
+            this.progressBar1.TabIndex = 8;
+            // 
+            // lblPRStatus
+            // 
+            this.lblPRStatus.AutoSize = true;
+            this.lblPRStatus.Location = new System.Drawing.Point(133, 432);
+            this.lblPRStatus.Name = "lblPRStatus";
+            this.lblPRStatus.Size = new System.Drawing.Size(0, 13);
+            this.lblPRStatus.TabIndex = 9;
+            // 
             // pictureBox1
             // 
             this.pictureBox1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
@@ -188,30 +212,20 @@
             this.pictureBox1.TabIndex = 0;
             this.pictureBox1.TabStop = false;
             // 
-            // lblTimeElapsed
-            // 
-            this.lblTimeElapsed.AutoSize = true;
-            this.lblTimeElapsed.Location = new System.Drawing.Point(539, 544);
-            this.lblTimeElapsed.Name = "lblTimeElapsed";
-            this.lblTimeElapsed.Size = new System.Drawing.Size(74, 13);
-            this.lblTimeElapsed.TabIndex = 7;
-            this.lblTimeElapsed.Text = "Elapsed Time:";
-            // 
             // frmUploadItemsList
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.White;
-            this.ClientSize = new System.Drawing.Size(784, 562);
+            this.Controls.Add(this.lblPRStatus);
+            this.Controls.Add(this.progressBar1);
             this.Controls.Add(this.lblTimeElapsed);
             this.Controls.Add(this.lblPleaseWaitMessage);
             this.Controls.Add(this.pictureBox1);
             this.Controls.Add(this.statusStrip1);
             this.Controls.Add(this.dgvUploadImages);
             this.Name = "frmUploadItemsList";
-            ////this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Uploading Status";
-            ////this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.frmProgress_FormClosing);
+            this.Size = new System.Drawing.Size(784, 562);
             this.Resize += new System.EventHandler(this.frmUploadItemsList_Resize);
             ((System.ComponentModel.ISupportInitialize)(this.dgvUploadImages)).EndInit();
             this.statusStrip1.ResumeLayout(false);
@@ -222,12 +236,14 @@
 
         }
 
+       
+       
+
         #endregion
 
         public System.Windows.Forms.DataGridView dgvUploadImages;
         private System.Windows.Forms.StatusStrip statusStrip1;
         private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabel1;
-        private System.Windows.Forms.Label lblPleaseWaitMessage;
         private System.Windows.Forms.PictureBox pictureBox1;
         private System.Windows.Forms.ToolStripSplitButton toolStripSplitButtonClose;
         private System.Windows.Forms.Label lblTimeElapsed;
@@ -239,5 +255,12 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn colFolderName;
 
         #endregion
+        public System.Windows.Forms.ProgressBar progressBar1;
+        public System.Windows.Forms.Label lblPRStatus;
+        public System.Windows.Forms.Label lblPleaseWaitMessage;
+
+
+
+
     }
 }

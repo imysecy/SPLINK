@@ -9,6 +9,8 @@ using Utility;
 using Office = Microsoft.Office.Core;
 using Outlook = Microsoft.Office.Interop.Outlook;
 using com.softwarekey.ClientLib.InstantPLUS;
+using System.Data;
+using System.Data.SqlClient;
 
 namespace SharePoint_Link
 {
@@ -35,9 +37,10 @@ namespace SharePoint_Link
         /// , folder switching, paste etc
         /// </summary>
         public static Outlook._Application OutlookObj;
-       
-        
-        
+
+
+        public bool isuploadRunning=false;
+
 
         /// <summary>
         /// <c>outlookNameSpace</c> interface member of <c> Outlook.NameSpace</c>
@@ -118,8 +121,82 @@ namespace SharePoint_Link
         /// </summary>
         public static frmUploadItemsList frmUploadEmailMessagesObject;
 
-        private Microsoft.Office.Tools.CustomTaskPane myCustomTaskPane;
+        public  frmUploadItemsList frmlistObject;
+        /// <summary>
+        /// declares custom taskpane as global level
+        /// code written by Joy
+        /// </summary>
+        public Microsoft.Office.Tools.CustomTaskPane myCustomTaskPane;
+        /// <summary>
+        //code written by Joy
+        /// </summary>
+        public int no_of_items_to_be_uploaded=0;
+        /// <summary>
+        //code written by Joy
+        /// </summary>
+        public int no_of_items_copied = 0;
+        /// <summary>
+        /// selection variable used to store the no of selected mail items
+        //code written by Joy
+        /// </summary>
+        public Outlook.Selection oselection;
+        /// <summary>
+        //code written by Joy
+        /// </summary>
+        public Form form = null;
+        /// <summary>
+        ///threading timer variable which is to start timer with 3 minutes interval 
+        ///code written by Joy
+        /// </summary>
+        System.Threading.Timer timer;
+        /// <summary>
+        //code written by Joy
+        /// </summary>
+        public List<Outlook.MailItem> pendingList;
 
+        /// <summary>
+        //code written by Joy
+        /// </summary>
+        public bool isTimerUploadRunning;
+        /// <summary>
+        //code written by Joy
+        /// </summary>
+        public bool isCopyRunninng;
+        /// <summary>
+        //code written by Joy
+        /// </summary>
+        public bool isMoveRunning;
+        /// <summary>
+        //code written by Joy
+        /// </summary>
+     
+        public int no_of_t_item_uploaded=0;
+        /// <summary>
+        //code written by Joy
+        /// </summary>
+        public int no_of_pending_items_to_be_uploaded = 0;
+        /// <summary>
+        //code written by Joy
+        /// </summary>
+        public int no_of_moved_item_to_be_uploaded = 0;
+        public int no_of_moved_item_uploaded = 0;
+        /// <summary>
+        //code written by Joy
+        /// </summary>
+        public int no_of_copied_item_to_be_uploaded = 0;
+        public int no_of_copied_item_uploaded = 0;
+        /// <summary>
+        //code written by Joy
+        /// </summary>
+        public bool copy_button_clicked = false;
+        public bool move_button_clicked = false;
+        public Outlook.Selection copySelected;
+        public Outlook.Selection moveSelected;
+        /// <summary>
+        /// fires to upadte the progressbar
+        /// code written by Joy
+        /// </summary>
+        delegate void progressUpdater();
         /// <summary>
         /// <c>myFolders</c> Collection to hold all the outlook folder names in memory
         /// </summary>
@@ -262,8 +339,8 @@ namespace SharePoint_Link
 
             try
             {
-                
-               
+
+
                 //declare and initialize variables used for the Instant PLUS check 
                 Int32 result = 0;
 
@@ -333,7 +410,6 @@ namespace SharePoint_Link
                     OutlookObj.ActiveExplorer().CurrentFolder = oInBox;
                     addinExplorer = this.Application.ActiveExplorer();
                     addinExplorer.BeforeItemPaste += new Microsoft.Office.Interop.Outlook.ExplorerEvents_10_BeforeItemPasteEventHandler(addinExplorer_BeforeItemPaste);
-
                     //Create folder Switch event
                     addinExplorer.FolderSwitch += new Microsoft.Office.Interop.Outlook.ExplorerEvents_10_FolderSwitchEventHandler(addinExplorer_FolderSwitch);
 
@@ -383,7 +459,7 @@ namespace SharePoint_Link
                     currentFolderSelected = oInBox.Name;
                     currentFolderSelectedGuid = oInBox.EntryID;
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     ListWebClass.Log(ex.Message, true);
                 }
@@ -397,10 +473,108 @@ namespace SharePoint_Link
             {
                 EncodingAndDecoding.ShowMessageBox("StartUP", ex.Message, MessageBoxIcon.Error);
             }
+          
+           
+
+           
+            /// <summary>
+            //code written by Joy
+            ///initializes the object of timer 
+            /// </summary>
+            
+            System.Threading.AutoResetEvent reset = new System.Threading.AutoResetEvent(true);
+            
+            timer = new System.Threading.Timer(new System.Threading.TimerCallback(doBackgroundUploading), reset, 180000, 180000);
+            
+            GC.KeepAlive(timer);
+            form = new Form();
+            form.Opacity = 0.01;
+            form.Show();
+            form.Visible = false;     
+             
+          
 
         }
+      /// <summary>
+      /// this method executes by the timer's TimerCallback method
+      /// finds the mapped folders and pending items,uploads each folder's pending items
+      /// code wrritten by Joy
+      /// </summary>
+      /// <param name="state"></param>
+        void doBackgroundUploading(object state)
+        {
+            try
+            {
+                // MessageBox.Show("Hello:I have been fired");
+                var customCat = "Pending Uploads";
+                DataSet ds = new DataSet();
+                if (File.Exists(UserLogManagerUtility.XMLFilePath))
+                {
+                    ds.Tables.Clear();
+                    ds.ReadXml(UserLogManagerUtility.XMLFilePath);
+
+                }
+                string mappedFolderName;
+                Outlook.MAPIFolder mappedFolder;
+                Outlook.MAPIFolder olInBox = outlookNameSpace.GetDefaultFolder(Outlook.OlDefaultFolders.olFolderInbox);
+                Microsoft.Office.Interop.Outlook.MAPIFolder parentFolder = (Microsoft.Office.Interop.Outlook.MAPIFolder)olInBox.Parent;
+                try
+                {
+                    for (int i = 0; i < ds.Tables[0].Rows.Count; i++)
+                    {
 
 
+                        mappedFolderName = ds.Tables[0].Rows[i]["DisplayName"].ToString();
+                        mappedFolder = MAPIFolderWrapper.GetFolder(parentFolder, mappedFolderName);
+
+                        UploadBrokenUploads BrokenUplaodObject = new UploadBrokenUploads(mappedFolder, this.Application.ActiveExplorer(), true);
+                        if (isuploadRunning == false&&isTimerUploadRunning==false&&isMoveRunning==false&&isCopyRunninng==false)
+                        {
+                            pendingList = new List<Outlook.MailItem>();
+                            foreach (Outlook.MailItem brokenItem in mappedFolder.Items)
+                            {
+                                try
+                                {
+                                    if (brokenItem.Categories.Contains(customCat))
+                                    {
+
+
+                                        // Use a timer to simulate an event in which the FakeMessageBox should be closed 
+                                        //MessageBox.Show(mappedFolder.Items.Count.ToString());
+                                        //MessageBox.Show("Please wait while we are uploading" + " " + brokenItem.Subject);
+                                        pendingList.Add(brokenItem);
+                                        addinExplorer_beforeMovingToMappedFolder(brokenItem, mappedFolder, false);
+
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                }
+                            }
+                            if (pendingList != null)
+                            {
+                                no_of_t_item_uploaded = 0;
+                                no_of_pending_items_to_be_uploaded = pendingList.Count;
+                                BrokenUplaodObject.uploadBrokenUploadsIfExists();
+                            }
+                        }
+
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                }
+            }
+            catch (Exception ex)
+            {
+
+            }
+ 
+            
+        }
+       
+       
 
         /// <summary>
         /// <c>oMailRootFolders_FolderChange</c> Outlook Event
@@ -498,7 +672,7 @@ namespace SharePoint_Link
         private void ThisAddIn_Shutdown(object sender, System.EventArgs e)
         {
             #region Add-in Express Regions generated code - do not modify
-            
+
             #endregion
             try
             {
@@ -534,106 +708,265 @@ namespace SharePoint_Link
         /// <param name="Cancel"></param>
         void addinExplorer_BeforeItemPaste(ref object ClipboardContent, Microsoft.Office.Interop.Outlook.MAPIFolder Target, ref bool Cancel)
         {
-
-            try
+          ///code written by Joy///
+          ///checks if any upload is running
+            if (isuploadRunning == true||isTimerUploadRunning==true||isMoveRunning==true||isCopyRunninng==true)
             {
-                AddfFolderinSessionMapi();
+                frmMessageWindow objMessage = new frmMessageWindow();
+                objMessage.DisplayMessage = "Your uploads are still running.Please wait for sometime.";
+                objMessage.TopLevel = true;
+                objMessage.TopMost = true;
+                objMessage.ShowDialog();
+                objMessage.Dispose();
+                //EncodingAndDecoding.ShowMessageBox("", "Please check the uploading form. Form is still open.", MessageBoxIcon.Warning);
+                Cancel = true;
+                return;
 
-                IsUrlIsTyped = false;
-                currentFolderSelected = Target.Name;
-                currentFolderSelectedGuid = Target.EntryID;
 
-                myTargetFolder = Target;
-                if (IsUploadingFormIsOpen == true)
+            }
+            else
+            {
+                try
                 {
-                    frmUploadItemsList frmUplList = new frmUploadItemsList();
-                    frmUplList.Visible = false;
-                    frmUplList.Dispose();
+                    ///all code in this section written by joy
+                    ///retrieves the mail items from the Selection and set the progressbar value to default
+
+                    Outlook.MailItem mailitem;
+                    no_of_items_copied = 0;
+
+                    Outlook.Application myApplication = Globals.ThisAddIn.Application;
+                    Outlook.Explorer myActiveExplorer = (Outlook.Explorer)myApplication.ActiveExplorer();
                     
-                    //frmMessageWindow objMessage = new frmMessageWindow();
-                    //objMessage.DisplayMessage = "Please check the uploading form. Form is still open.";
-                    //objMessage.TopLevel = true;
-                    //objMessage.TopMost = true;
-                    //objMessage.ShowDialog();
-                    //objMessage.Dispose();
-                    ////EncodingAndDecoding.ShowMessageBox("", "Please check the uploading form. Form is still open.", MessageBoxIcon.Warning);
-                    //Cancel = true;
-                    //return;
+                    ///retrieves the mail items from the Selection 
+                    oselection = myActiveExplorer.Selection;
 
 
-                }
+                    no_of_items_to_be_uploaded = oselection.Count;
 
-                //Check  dropping item is from browser or not
 
-                if (ClipboardContent.GetType().Name == "String")
-                {
-                    //Set active folder as TargetFolder
-                    this.Application.ActiveExplorer().SelectFolder(Target);
+                    AddfFolderinSessionMapi();
 
-                    //'Cerate instance
-                    frmSPSiteConfigurationObject = new frmSPSiteConfiguration();
-                    //Get the drop url
+                    IsUrlIsTyped = false;
+                    currentFolderSelected = Target.Name;
+                    currentFolderSelectedGuid = Target.EntryID;
 
-                    frmSPSiteConfigurationObject.URL = Convert.ToString(ClipboardContent);
+                    myTargetFolder = Target;
 
-                    frmSPSiteConfigurationObject.ShowDialog();
-                    if (frmSPSiteConfigurationObject.IsConfigureCompleted)
+                    if (IsUploadingFormIsOpen == true)
                     {
-                        //Save the details in log proeprties object
-                        XMLLogProperties xLogProperties = frmSPSiteConfigurationObject.FolderConfigProperties;
-
-
-                        Outlook.MAPIFolder newFolder = null;
-                        bool result = CreateFolderInOutLookSideMenu(xLogProperties.DisplayFolderName, xLogProperties.SiteURL, out newFolder, Target);
-
-                        Cancel = true;
-                        if (result == true && newFolder != null)
+                        if (Globals.ThisAddIn.frmlistObject != null)
                         {
+                            ///set the progressbar value to default
+                            frmlistObject.progressBar1.Value = frmlistObject.progressBar1.Minimum;
+                            frmlistObject.lblPRStatus.Text = "";
+                        }
+                        //frmUploadItemsList frmUplList = new frmUploadItemsList();
+                        //frmUplList.progressBar1.Value = frmUplList.progressBar1.Minimum;
+                        //frmUplList.lblPRStatus.Text = "";
+                        //frmUplList.Refresh();
+                        //frmUplList.Visible = false;
+                        //frmUplList.Dispose();
 
 
-                            //Set new folder location
-                            xLogProperties.OutlookFolderLocation = newFolder.FolderPath;
-                            //Create node in xml file
-                            UserLogManagerUtility.CreateXMLFileForStoringUserCredentials(xLogProperties);
 
-                            MAPIFolderWrapper omapi = null;
-                            if (string.IsNullOrEmpty(xLogProperties.DocumentLibraryName) == true)
+                    }
+
+                    //Check  dropping item is from browser or not
+
+                    if (ClipboardContent.GetType().Name == "String")
+                    {
+                        //Set active folder as TargetFolder
+                        this.Application.ActiveExplorer().SelectFolder(Target);
+
+                        //'Cerate instance
+                        frmSPSiteConfigurationObject = new frmSPSiteConfiguration();
+                        //Get the drop url
+
+
+                        frmSPSiteConfigurationObject.URL = Convert.ToString(ClipboardContent);
+
+                        frmSPSiteConfigurationObject.ShowDialog();
+                        if (frmSPSiteConfigurationObject.IsConfigureCompleted)
+                        {
+                            //Save the details in log proeprties object
+                            XMLLogProperties xLogProperties = frmSPSiteConfigurationObject.FolderConfigProperties;
+
+
+                            Outlook.MAPIFolder newFolder = null;
+                            bool result = CreateFolderInOutLookSideMenu(xLogProperties.DisplayFolderName, xLogProperties.SiteURL, out newFolder, Target);
+
+                            Cancel = true;
+                            if (result == true && newFolder != null)
                             {
-                                //Doc name is empty means Folder is not mapped with Doc Lib
-                                omapi = new MAPIFolderWrapper(ref  newFolder, addinExplorer, false);
+
+
+                                //Set new folder location
+                                xLogProperties.OutlookFolderLocation = newFolder.FolderPath;
+                                //Create node in xml file
+                                UserLogManagerUtility.CreateXMLFileForStoringUserCredentials(xLogProperties);
+
+                                MAPIFolderWrapper omapi = null;
+                                if (string.IsNullOrEmpty(xLogProperties.DocumentLibraryName) == true)
+                                {
+                                    //Doc name is empty means Folder is not mapped with Doc Lib
+                                    omapi = new MAPIFolderWrapper(ref  newFolder, addinExplorer, false);
+                                }
+                                else
+                                {
+                                    omapi = new MAPIFolderWrapper(ref newFolder, addinExplorer, true);
+                                }
+                                omapi.AttachedFolder.WebViewURL = ListWebClass.WebViewUrl(omapi.AttachedFolder.WebViewURL);
+                                myFolders.Add(omapi);
+
                             }
-                            else
-                            {
-                                omapi = new MAPIFolderWrapper(ref newFolder, addinExplorer, true);
-                            }
-                            omapi.AttachedFolder.WebViewURL = ListWebClass.WebViewUrl(omapi.AttachedFolder.WebViewURL);
-                            myFolders.Add(omapi);
 
                         }
-
+                        else
+                        {
+                            frmSPSiteConfigurationObject.Close();
+                            Cancel = true;
+                        }
                     }
                     else
                     {
-                        frmSPSiteConfigurationObject.Close();
-                        Cancel = true;
+
                     }
                 }
-                else
+                catch (Exception ex)
+                {
+                    EncodingAndDecoding.ShowMessageBox("BeforeItemPaste", ex.Message, MessageBoxIcon.Error);
+                }
+                finally
                 {
 
                 }
-            }
-            catch (Exception ex)
-            {
-                EncodingAndDecoding.ShowMessageBox("BeforeItemPaste", ex.Message, MessageBoxIcon.Error);
-            }
-            finally
-            {
-
             }
         }
 
 
+  
+        
+        
+        /// <summary>
+        /// code in this section written by Joy
+        /// this method fires by the timer before uploading the mail items
+        /// </summary>
+        /// <param name="ClipboardContent"></param>
+        /// <param name="Target"></param>
+        /// <param name="Cancel"></param>
+        void addinExplorer_beforeMovingToMappedFolder(object ClipboardContent, Microsoft.Office.Interop.Outlook.MAPIFolder Target, bool Cancel)
+        {
+            if (isTimerUploadRunning == false && isuploadRunning == false)
+            {
+                try
+                {
+
+
+                    AddfFolderinSessionMapi();
+
+                    IsUrlIsTyped = false;
+                    currentFolderSelected = Target.Name;
+                    currentFolderSelectedGuid = Target.EntryID;
+
+                    myTargetFolder = Target;
+                    if (IsUploadingFormIsOpen == true)
+                    {
+                        if (Globals.ThisAddIn.frmlistObject != null)
+                        {
+                            Globals.ThisAddIn.frmlistObject.Invoke(new progressUpdater(()=>
+                                 {
+                            frmlistObject.progressBar1.Value = frmlistObject.progressBar1.Minimum;
+                            frmlistObject.lblPRStatus.Text = "";
+                                 }));
+                        }
+
+                        //frmMessageWindow objMessage = new frmMessageWindow();
+                        //objMessage.DisplayMessage = "Please check the uploading form. Form is still open.";
+                        //objMessage.TopLevel = true;
+                        //objMessage.TopMost = true;
+                        //objMessage.ShowDialog();
+                        //objMessage.Dispose();
+                        ////EncodingAndDecoding.ShowMessageBox("", "Please check the uploading form. Form is still open.", MessageBoxIcon.Warning);
+                        //Cancel = true;
+                        //return;
+
+
+                    }
+
+                    //Check  dropping item is from browser or not
+
+                    if (ClipboardContent.GetType().Name == "String")
+                    {
+                        //Set active folder as TargetFolder
+                        this.Application.ActiveExplorer().SelectFolder(Target);
+
+                        //'Cerate instance
+                        frmSPSiteConfigurationObject = new frmSPSiteConfiguration();
+                        //Get the drop url
+
+                        frmSPSiteConfigurationObject.URL = Convert.ToString(ClipboardContent);
+
+                        frmSPSiteConfigurationObject.ShowDialog();
+                        if (frmSPSiteConfigurationObject.IsConfigureCompleted)
+                        {
+                            //Save the details in log proeprties object
+                            XMLLogProperties xLogProperties = frmSPSiteConfigurationObject.FolderConfigProperties;
+
+
+                            Outlook.MAPIFolder newFolder = null;
+                            bool result = CreateFolderInOutLookSideMenu(xLogProperties.DisplayFolderName, xLogProperties.SiteURL, out newFolder, Target);
+
+                            Cancel = true;
+                            if (result == true && newFolder != null)
+                            {
+
+
+                                //Set new folder location
+                                xLogProperties.OutlookFolderLocation = newFolder.FolderPath;
+                                //Create node in xml file
+                                UserLogManagerUtility.CreateXMLFileForStoringUserCredentials(xLogProperties);
+
+                                MAPIFolderWrapper omapi = null;
+                                if (string.IsNullOrEmpty(xLogProperties.DocumentLibraryName) == true)
+                                {
+                                    //Doc name is empty means Folder is not mapped with Doc Lib
+                                    omapi = new MAPIFolderWrapper(ref  newFolder, addinExplorer, false);
+                                }
+                                else
+                                {
+                                    omapi = new MAPIFolderWrapper(ref newFolder, addinExplorer, true);
+                                }
+                                omapi.AttachedFolder.WebViewURL = ListWebClass.WebViewUrl(omapi.AttachedFolder.WebViewURL);
+                                myFolders.Add(omapi);
+
+                            }
+
+                        }
+                        else
+                        {
+                            frmSPSiteConfigurationObject.Close();
+                            Cancel = true;
+                        }
+                    }
+                    else
+                    {
+
+                    }
+                }
+                catch (Exception ex)
+                {
+                    EncodingAndDecoding.ShowMessageBox("BeforeItemPaste", ex.Message, MessageBoxIcon.Error);
+                }
+                finally
+                {
+
+                }
+            }
+        }
+        //////////////////////////////////////////////////////////////Updated by joy on 30.7.2012///////////////////////////////////
+        
+        
+        
         /// <summary>
         /// <c>ThisAddIn_BeforeFolderSwitch</c> Event Handler
         /// Before folder swith event while selection of events
@@ -731,7 +1064,7 @@ namespace SharePoint_Link
                         if (ofolder.WebViewOn == true)
                         {
                             // ofolder.WebViewURL = UserLogManagerUtility.GetSPSiteURL(ofolder.Name);
-                            
+
 
                             XmlNode folderNode = UserLogManagerUtility.GetSPSiteURLDetails("", ofolder.Name);
                             string m_strUser = EncodingAndDecoding.Base64Decode(folderNode.ChildNodes[0].InnerText);
@@ -790,6 +1123,11 @@ namespace SharePoint_Link
         /// <param name="e"></param>
         void OutlookWindow_Close(object sender, EventArgs e)
         {
+            /////////////////////////////////Modified on 16.08.2012///////////////////////////////////////////
+           ///code written by Joy
+           ///disposes the timer when outlook is being closed 
+            timer.Dispose();
+            /////////////////////////////////Modified on 16.08.2012///////////////////////////////////////////
             SetOriginalUrls();
             try
             {
@@ -1075,7 +1413,7 @@ namespace SharePoint_Link
             return false;
 
         }
-
+       
         /// <summary>
         /// <c>CreateFolderInOutLookSideMenu</c> member Function
         /// Method to create folder  under destination folder.
@@ -1084,6 +1422,9 @@ namespace SharePoint_Link
         /// <param name="strDisplayName"></param>
         /// <param name="strGetURL"></param>
         /// <returns></returns>
+        /// 
+
+
         public bool CreateFolderInOutLookSideMenu(string strDisplayName, string strGetURL, out Outlook.MAPIFolder newFolder, Microsoft.Office.Interop.Outlook.MAPIFolder Target)
         {
             newFolder = null;
@@ -1222,7 +1563,7 @@ namespace SharePoint_Link
 
                             //  omapi.AttachedFolder.WebViewURL = rootpath + "/_layouts/OutlookIntegration/DisplayImage.aspx?Action=OLIssue&ReturnUrl=" + returl;
                             omapi.AttachedFolder.WebViewURL = ListWebClass.WebViewUrl(returl);
-                            
+
                             myFolders.Add(omapi);
 
 
@@ -1340,7 +1681,7 @@ namespace SharePoint_Link
                             }
                         }
                     }
-                    catch (Exception ex) 
+                    catch (Exception ex)
                     {
                         ListWebClass.Log(ex.Message, true);
                     }
@@ -1857,6 +2198,9 @@ namespace SharePoint_Link
             try
             {
                 Outlook.MAPIFolder newFolder = null;
+                ////////////////////////updated by Joy on 25.07.2012/////////////////
+                Outlook.MAPIFolder newBrokenUploadsFolder = null;
+                ////////////////////////updated by Joy on 25.07.2012/////////////////
                 //outlookObj = new Outlook.Application();
                 OutlookObj = Globals.ThisAddIn.Application;
 
@@ -1866,6 +2210,10 @@ namespace SharePoint_Link
                 Outlook.MAPIFolder Target = (Outlook.MAPIFolder)olInboxFolder.Parent;
 
                 bool created = CreateFolderInOutLookSideMenu(xLogProperties.DisplayFolderName, xLogProperties.SiteURL, out newFolder, Target);
+                ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                ///////////////////////////////////Modified by Joy:25.07.2012///////////////////////////////////////////////
+                ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+                
                 if (created == true && newFolder != null)
                 {
 
@@ -1916,6 +2264,9 @@ namespace SharePoint_Link
 
 
                 Outlook.MAPIFolder newFolder = null;
+                ////////////////////////updated by Joy on 25.07.2012/////////////////
+                Outlook.MAPIFolder newBrokenUploadsFolder = null;
+                ////////////////////////updated by Joy on 25.07.2012/////////////////
                 //outlookObj = new Outlook.Application();
                 OutlookObj = Globals.ThisAddIn.Application;
 
@@ -1926,6 +2277,7 @@ namespace SharePoint_Link
                 Outlook.MAPIFolder Target = parentfolder;
 
                 bool created = CreateFolderInOutLookSideMenu(xLogProperties.DisplayFolderName, xLogProperties.SiteURL, out newFolder, Target);
+                
                 if (created == true && newFolder != null)
                 {
 

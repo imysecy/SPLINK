@@ -4,6 +4,8 @@ using SharePoint_Link.UserModule;
 using SharePoint_Link.Utility;
 using Outlook = Microsoft.Office.Interop.Outlook;
 using System.Xml;
+using System.Data;
+using System.IO;
 
 namespace SharePoint_Link
 {
@@ -13,6 +15,9 @@ namespace SharePoint_Link
     /// </summary>
     public partial class SharePointRibbon
     {
+
+
+        frmFolderOptions frmoption;
         /// <summary>
         /// <c>frmSPSiteConfigurationObject</c> an object of window form 
         /// <c>frmSPSiteConfiguration</c>
@@ -25,6 +30,7 @@ namespace SharePoint_Link
         /// </summary>
         XMLLogOptions userOptions;
 
+        bool folderOptionFrmIsOpen;
         /// <summary>
         /// <c>SharePointRibbon_Load</c> event handler
         /// get configuration properties from config file
@@ -165,18 +171,166 @@ namespace SharePoint_Link
 
             }
         }
-
+        /// <summary>
+        /// code written by Joy
+        /// this event fires when the Upload ribbon control is clicked
+        /// makes visible the custom taskpane and reposition the dock position of the custom taskpane
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void Uploads_Click(object sender, RibbonControlEventArgs e)
         {
             try
             {
-                Globals.ThisAddIn.CustomTaskPanes[0].Visible = true;
-                Globals.ThisAddIn.CustomTaskPanes[0].DockPosition = Microsoft.Office.Core.MsoCTPDockPosition.msoCTPDockPositionFloating;
+                   
+                    Globals.ThisAddIn.CustomTaskPanes[0].Visible = true;
+                    Globals.ThisAddIn.CustomTaskPanes[0].DockPosition = Microsoft.Office.Core.MsoCTPDockPosition.msoCTPDockPositionFloating;
             }
             catch (Exception ex)
             {
                 
             }
+        }
+        /// <summary>
+        /// code written by Joy
+        /// fires when the copy ribbon control is clicked
+        /// sets the mapped folder names to the dropdownlist
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void Copy_Click(object sender, RibbonControlEventArgs e)
+        {
+            DataSet ds = new DataSet();
+
+            if (File.Exists(UserLogManagerUtility.XMLFilePath))
+            {
+                ds.Tables.Clear();
+                ds.ReadXml(UserLogManagerUtility.XMLFilePath);
+                try
+                {
+                    if(ds.Tables[0].Rows.Count>0)
+                    {
+                        if (Globals.ThisAddIn.isuploadRunning == false && Globals.ThisAddIn.isTimerUploadRunning == false && Globals.ThisAddIn.isMoveRunning == false && Globals.ThisAddIn.isCopyRunninng == false)
+                        {
+                            Globals.ThisAddIn.copy_button_clicked = true;
+                            Globals.ThisAddIn.move_button_clicked = false;
+
+                            Outlook.Application myApplication = Globals.ThisAddIn.Application;
+                            Outlook.Explorer myActiveExplorer = (Outlook.Explorer)myApplication.ActiveExplorer();
+                            Globals.ThisAddIn.copySelected = myActiveExplorer.Selection;
+                            if (Globals.ThisAddIn.copySelected.Count > 0)
+                            {
+                                
+                                Globals.ThisAddIn.isCopyRunninng = true;
+                                Globals.ThisAddIn.no_of_copied_item_uploaded = 0;
+                                Globals.ThisAddIn.no_of_copied_item_to_be_uploaded = Globals.ThisAddIn.copySelected.Count;
+                                frmoption = new frmFolderOptions();
+                                frmoption.ShowDialog();
+                            }
+                            else
+                            {
+                                frmMessageWindow messagebox = new frmMessageWindow();
+                                messagebox.DisplayMessage = "Please select some items";
+                                messagebox.TopLevel = true;
+                                messagebox.TopMost = true;
+                                messagebox.ShowDialog();
+                                messagebox.Dispose();
+
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            frmMessageWindow objMessage = new frmMessageWindow();
+                            objMessage.DisplayMessage = "Your uploads are still running.Please wait for sometime.";
+                            objMessage.TopLevel = true;
+                            objMessage.TopMost = true;
+                            objMessage.ShowDialog();
+                            objMessage.Dispose();
+
+                            return;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+
+                }
+            }
+            
+        }
+        /// <summary>
+        /// code written by Joy
+        /// this event is fired when the move button is clicked
+        /// sets the mapped folder names to the dropdownlist
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void Move_Click(object sender, RibbonControlEventArgs e)
+        {
+            DataSet ds = new DataSet();
+
+            if (File.Exists(UserLogManagerUtility.XMLFilePath))
+            {
+                ds.Tables.Clear();
+                ds.ReadXml(UserLogManagerUtility.XMLFilePath);
+                try
+                {
+                    if (ds.Tables[0].Rows.Count > 0)
+                    {
+                        if (Globals.ThisAddIn.isuploadRunning == false && Globals.ThisAddIn.isTimerUploadRunning == false && Globals.ThisAddIn.isMoveRunning == false && Globals.ThisAddIn.isCopyRunninng == false)
+                        {
+                            Globals.ThisAddIn.copy_button_clicked = false;
+                            Globals.ThisAddIn.move_button_clicked = true;
+
+                            Outlook.Application myApplication = Globals.ThisAddIn.Application;
+                            Outlook.Explorer myActiveExplorer = (Outlook.Explorer)myApplication.ActiveExplorer();
+                            Globals.ThisAddIn.moveSelected = myActiveExplorer.Selection;
+                            if (Globals.ThisAddIn.moveSelected.Count > 0)
+                            {
+                                Globals.ThisAddIn.isMoveRunning = true;
+                                Globals.ThisAddIn.no_of_moved_item_uploaded = 0;
+                                Globals.ThisAddIn.no_of_moved_item_to_be_uploaded = Globals.ThisAddIn.moveSelected.Count;
+                                frmoption = new frmFolderOptions();
+                                frmoption.ShowDialog();
+
+                            }
+                            else
+                            {
+                                frmMessageWindow messagebox = new frmMessageWindow();
+                                messagebox.DisplayMessage = "Please select some items";
+                                messagebox.TopLevel = true;
+                                messagebox.TopMost = true;
+                                messagebox.ShowDialog();
+                                messagebox.Dispose();
+
+                                return;
+                            }
+                           
+                        }
+                        else
+                        {
+                            frmMessageWindow objMessage = new frmMessageWindow();
+                            objMessage.DisplayMessage = "Your uploads are still running.Please wait for sometime.";
+                            objMessage.TopLevel = true;
+                            objMessage.TopMost = true;
+                            objMessage.ShowDialog();
+                            objMessage.Dispose();
+
+                            return;
+
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+
+                }
+            }
+            
+
+           
+            
         }
 
 

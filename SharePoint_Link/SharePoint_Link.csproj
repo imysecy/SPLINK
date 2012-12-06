@@ -240,6 +240,12 @@
     <Compile Include="ADXOlFormWPFBrowser.Designer.cs">
       <DependentUpon>ADXOlFormWPFBrowser.cs</DependentUpon>
     </Compile>
+    <Compile Include="frmFolderOptions.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmFolderOptions.Designer.cs">
+      <DependentUpon>frmFolderOptions.cs</DependentUpon>
+    </Compile>
     <Compile Include="frmUploadItemsList.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -339,6 +345,7 @@
     </Compile>
     <Compile Include="Wrappers\MAPIFolderWrapper.cs" />
     <Compile Include="Wrappers\OutlookExplorerWrapper.cs" />
+    <Compile Include="Wrappers\UploadBrokenUploads.cs" />
     <EmbeddedResource Include="ADXOlFormWPFBrowser.resx">
       <DependentUpon>ADXOlFormWPFBrowser.cs</DependentUpon>
     </EmbeddedResource>
@@ -347,6 +354,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="frmEditUploadedItem.resx">
       <DependentUpon>frmEditUploadedItem.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="frmFolderOptions.resx">
+      <DependentUpon>frmFolderOptions.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="frmMessageWindow.resx">
       <DependentUpon>frmMessageWindow.cs</DependentUpon>
@@ -362,6 +372,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="frmtest.resx">
       <DependentUpon>frmtest.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="frmUploadItemsList.resx">
+      <DependentUpon>frmUploadItemsList.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -438,9 +451,13 @@
     <Content Include="Resources\close.png" />
     <Content Include="Resources\Connection.jpg" />
     <Content Include="Resources\Connection_new.jpg" />
+    <None Include="Resources\copy.png" />
+    <None Include="Resources\Email copy.ico" />
     <Content Include="Resources\exclamation_red.png" />
+    <None Include="Resources\h21.png" />
     <Content Include="Resources\information-technology-25.jpg" />
     <Content Include="Resources\h2.png" />
+    <None Include="Resources\move.png" />
     <Content Include="Resources\ok_16.png" />
     <Content Include="Resources\Penguins.jpg" />
     <Content Include="Resources\PROCESS_READY.gif" />

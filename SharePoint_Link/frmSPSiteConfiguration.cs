@@ -170,7 +170,9 @@ namespace SharePoint_Link
                     }
                     if (isFolderExisted == false)
                     {
-
+                       
+                       
+                       
                         IsConfigureCompleted = true;
                         xLogProperties.DisplayFolderName = txtDisplayName.Text;
                         if (rbtnUseDomainCredentials.Checked)
@@ -213,9 +215,7 @@ namespace SharePoint_Link
 
             }
         }
-
-
-
+       
         /// <summary>
         /// <c>ShowEditForm</c> member function
         /// Method to open the selected folder details as Edit mode
